@@ -16,6 +16,7 @@
   const SESSION_MAX_MS = 8 * 60 * 60 * 1000; // отметка в пивной снимается сама через 8 часов
   const POLL_MS = 30 * 1000;                  // как часто обновлять, кто где пьёт
   const ABV = 0.044;                          // ≈ крепость светлого 12°
+  const SHOT_ABV = 0.40;                      // крепкое (водка, ром, бехеровка, сливовица) ≈ 40 %
   const BRANDS = ['Pilsner Urquell', 'Kozel', 'Radegast', 'Gambrinus', 'Staropramen',
     'Budějovický Budvar', 'Krušovice', 'Bernard', 'Svijany'];
   const AVATARS = ['🍺', '🧔', '👩', '🧢', '🎸', '🚲', '🦊', '🐻', '🤠', '👽'];
@@ -46,6 +47,7 @@
     pickedEmoji: AVATARS[0],
     authMode: 'signup',
     armed: null,       // кнопка «нажмите ещё раз» для опасных действий
+    installPrompt: null, // событие браузера «можно установить» (Android/Chrome)
   };
 
   // приглашение в друзья по ссылке ?friend=КОД
@@ -69,10 +71,33 @@
     return forms[2];
   }
   const beers = n => `${n} ${plural(n, ['пиво', 'пива', 'пив'])}`;
-  const liters = drinks => Math.round(drinks.reduce((sum, d) => sum + d.size, 0) * 10) / 10;
+  const shots = n => `${n} ${plural(n, ['стопка', 'стопки', 'стопок'])}`;
+  const isShot = d => d.kind === 'shot';
+  const countBeers = drinks => drinks.filter(d => !isShot(d)).length;
+  const countShots = drinks => drinks.filter(isShot).length;
+  // литры считаем только по пиву: стопки — отдельным счётчиком
+  const liters = drinks => Math.round(drinks.reduce((sum, d) => sum + (isShot(d) ? 0 : d.size), 0) * 10) / 10;
   const fmtNum = n => Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 1 });
   const fmtL = l => `${fmtNum(l)} л`;
-  const grams = l => Math.round(l * 1000 * ABV * 0.789);
+  // граммы чистого спирта: объём × крепость × плотность спирта
+  const grams = drinks => Math.round(drinks.reduce((g, d) => g + d.size * 1000 * (isShot(d) ? SHOT_ABV : ABV) * 0.789, 0));
+  // «2 пива + 3 стопки» (без литров — для коротких строк)
+  function countText(drinks) {
+    const nb = countBeers(drinks), ns = countShots(drinks);
+    return [nb || !ns ? beers(nb) : '', ns ? shots(ns) : ''].filter(Boolean).join(' + ');
+  }
+  // «2 пива · 1 л + 3 стопки»
+  function tally(drinks) {
+    const nb = countBeers(drinks), ns = countShots(drinks);
+    if (!nb) return countText(drinks);
+    return `${beers(nb)} · ${fmtL(liters(drinks))}${ns ? ' + ' + shots(ns) : ''}`;
+  }
+  // правая колонка в списках: жирным — пиво, ниже — литры и стопки
+  function drinksMeta(drinks) {
+    const nb = countBeers(drinks), ns = countShots(drinks);
+    if (!nb && ns) return `<b>🥃 ${shots(ns)}</b>`;
+    return `<b>${beers(nb)}</b><br>${fmtL(liters(drinks))}${ns ? ` · 🥃${ns}` : ''}`;
+  }
   const fmtTime = ts => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   const fmtDate = ts => new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
@@ -97,7 +122,8 @@
     friend_not_found: 'Нет пользователя с таким кодом',
     self_friend: 'Это ваш собственный код 🙂',
     no_active_session: 'Сначала отметьтесь в пивной',
-    too_many: 'Максимум 40 пив за одну отметку',
+    too_many: 'Максимум 60 напитков за одну отметку',
+    bad_size: 'Такой объём добавить нельзя',
     pub_not_found: 'Пивная не найдена',
     not_authenticated: 'Войдите в профиль',
   };
@@ -135,7 +161,7 @@
   const fromSessionRow = r => ({
     id: r.id, userId: r.user_id, pubId: r.pub_id,
     startedAt: Date.parse(r.started_at), endedAt: r.ended_at ? Date.parse(r.ended_at) : null,
-    drinks: (r.drinks || []).map(d => ({ size: Number(d.size), at: Date.parse(d.created_at) })).sort((a, b) => a.at - b.at),
+    drinks: (r.drinks || []).map(d => ({ kind: d.kind || 'beer', size: Number(d.size), at: Date.parse(d.created_at) })).sort((a, b) => a.at - b.at),
   });
 
   function drinkers() {
@@ -166,7 +192,7 @@
   async function loadLive() {
     const since = new Date(Date.now() - SESSION_MAX_MS).toISOString();
     const rows = await call(sb.from('sessions')
-      .select('id,user_id,pub_id,started_at,ended_at,drinks(size,created_at)')
+      .select('id,user_id,pub_id,started_at,ended_at,drinks(size,kind,created_at)')
       .is('ended_at', null).gt('started_at', since));
     state.live = rows.map(fromSessionRow);
   }
@@ -176,7 +202,7 @@
   async function loadMine() {
     const [hist, votes] = await Promise.all([
       call(sb.from('sessions')
-        .select('id,user_id,pub_id,started_at,ended_at,drinks(size,created_at)')
+        .select('id,user_id,pub_id,started_at,ended_at,drinks(size,kind,created_at)')
         .eq('user_id', me()).not('ended_at', 'is', null)
         .order('started_at', { ascending: false }).limit(10)),
       call(sb.from('pub_votes').select('pub_id,vote')),
@@ -247,15 +273,17 @@
     if (ok) toast(current ? 'Прошлая пивная сохранена в историю. Вы отметились здесь!' : 'Вы отметились! Добавляйте пиво кнопкой «+»');
   }
 
-  async function addDrink(size) {
+  // kind: 'beer' — пиво 0,3/0,5 л, 'shot' — стопка крепкого 0,02/0,04 л
+  async function addDrink(size, kind) {
+    kind = kind === 'shot' ? 'shot' : 'beer';
     const s = mySession();
     if (!s) return toast('Сначала отметьтесь в пивной');
-    const drink = { size, at: Date.now() };
+    const drink = { kind, size, at: Date.now() };
     s.drinks.push(drink);                      // сразу показываем, потом сохраняем
     render();
-    toast(`🍺 ${beers(s.drinks.length)} · ${fmtL(liters(s.drinks))}`);
+    toast(`${kind === 'shot' ? '🥃' : '🍺'} ${tally(s.drinks)}`);
     try {
-      await call(sb.rpc('add_drink', { p_size: size }));
+      await call(sb.rpc('add_drink', { p_size: size, p_kind: kind }));
       await loadStats();
       render();
     } catch (e) {
@@ -289,7 +317,7 @@
       await call(sb.rpc('end_session'));
       await Promise.all([loadLive(), loadMine()]);
     });
-    if (ok) toast(s.drinks.length ? `Записано: ${beers(s.drinks.length)}, ${fmtL(liters(s.drinks))}` : 'Отметка снята');
+    if (ok) toast(s.drinks.length ? `Записано: ${tally(s.drinks)}` : 'Отметка снята');
   }
 
   async function vote(pubId, value) {
@@ -497,17 +525,25 @@
         <div class="title">${d.isMe ? 'Вы' : esc(d.name)} ${hidden ? '<span class="badge">скрыто от друзей</span>' : ''}</div>
         <div class="sub">${opts.showPub ? esc(pub.name) + ' · ' : ''}с ${fmtTime(d.since)}</div>
       </div>
-      <div class="meta"><b>${beers(d.drinks.length)}</b><br>${fmtL(liters(d.drinks))}${opts.dist != null ? ' · ' + fmtDist(opts.dist) : ''}</div>
+      <div class="meta">${drinksMeta(d.drinks)}${opts.dist != null ? `<br>${fmtDist(opts.dist)}` : ''}</div>
     </li>`;
   }
 
   function sessionControls(s, withUndo) {
-    return `<div class="row wrap mt">
-      <button class="btn btn-primary" data-action="drink" data-size="0.5">＋ 0,5 л</button>
-      <button class="btn" data-action="drink" data-size="0.3">＋ 0,3 л</button>
-      ${withUndo ? `<button class="btn" data-action="undo" ${s.drinks.length ? '' : 'disabled'}>↶ Отменить</button>` : ''}
-      <button class="btn" data-action="end">Закончить</button>
-    </div>`;
+    return `<div class="drink-row mt">
+        <span class="drink-label">🍺 Пиво</span>
+        <button class="btn btn-primary" data-action="drink" data-size="0.5">＋ 0,5 л</button>
+        <button class="btn" data-action="drink" data-size="0.3">＋ 0,3 л</button>
+      </div>
+      <div class="drink-row mt">
+        <span class="drink-label">🥃 Крепкое</span>
+        <button class="btn btn-shot" data-action="drink" data-kind="shot" data-size="0.04" aria-label="Добавить стопку 40 мл">＋ 40 мл</button>
+        <button class="btn btn-shot" data-action="drink" data-kind="shot" data-size="0.02" aria-label="Добавить стопку 20 мл">＋ 20 мл</button>
+      </div>
+      <div class="row wrap mt">
+        ${withUndo ? `<button class="btn" data-action="undo" ${s.drinks.length ? '' : 'disabled'}>↶ Отменить</button>` : ''}
+        <button class="btn" data-action="end">Закончить</button>
+      </div>`;
   }
 
   function viewPub() {
@@ -533,7 +569,7 @@
 
       ${mine ? `<div class="card card-session">
           <h3>Вы здесь</h3>
-          <div class="big">${beers(s.drinks.length)} · ${fmtL(liters(s.drinks))}</div>
+          <div class="big">${tally(s.drinks)}</div>
           ${sessionControls(s, false)}
         </div>`
         : `<div class="row wrap">
@@ -621,13 +657,32 @@
       <label class="field">Пароль<input id="pPassword" class="input" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="${signup ? 'Минимум 6 символов' : ''}"></label>
       ${signup ? '<label class="check"><input type="checkbox" id="p18"> <span>Мне уже исполнилось 18 лет</span></label>' : '<div class="mt"></div>'}
       <button class="btn btn-primary" data-action="${signup ? 'signup' : 'login'}">${signup ? 'Создать профиль' : 'Войти'}</button>
+      ${installCard()}
+    </div>`;
+  }
+
+  // ---------- установка на телефон (иконка на главном экране) ----------
+  const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const isIOS = () => !/Android/.test(navigator.userAgent) &&
+    (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)); // iPad выдаёт себя за Mac
+  function installCard() {
+    if (isStandalone()) return '';
+    const how = state.installPrompt
+      ? '<button class="btn btn-primary" data-action="install">📲 Установить приложение</button>'
+      : isIOS()
+        ? '<p class="muted">В Safari нажмите «Поделиться» <b>⬆︎</b> внизу экрана → <b>«На экран „Домой“»</b>.</p>'
+        : '<p class="muted">Откройте меню браузера <b>⋮</b> → <b>«Добавить на главный экран»</b> или <b>«Установить приложение»</b>.</p>';
+    return `<div class="card">
+      <h3>📲 Tankovka на главном экране</h3>
+      <p class="muted">Иконка откроет карту сразу, без браузера — как обычное приложение.</p>
+      ${how}
     </div>`;
   }
 
   function friendItem(f) {
     const s = state.live.find(x => x.userId === f.id);
     const pub = s && pubById(s.pubId);
-    const status = pub ? `в «${esc(pub.name)}» · ${beers(s.drinks.length)}` : 'сейчас не в пивной';
+    const status = pub ? `в «${esc(pub.name)}» · ${countText(s.drinks)}` : 'сейчас не в пивной';
     const armed = state.armed === 'remove:' + f.id;
     return `<li class="item">
       <div class="ico">${esc(f.emoji)}</div>
@@ -645,7 +700,7 @@
 
     const s = mySession();
     const sp = s && pubById(s.pubId);
-    const st = state.stats || { beers: 0, liters: 0, pubs: 0 };
+    const st = Object.assign({ beers: 0, liters: 0, shots: 0, pubs: 0 }, state.stats);
 
     return `<div class="view">
       <div class="profile">
@@ -655,8 +710,8 @@
 
       ${s && sp ? `<div class="card card-session">
           <h3>Сейчас: ${esc(sp.name)}</h3>
-          <div class="big">${beers(s.drinks.length)} · ${fmtL(liters(s.drinks))}</div>
-          <div class="muted">с ${fmtTime(s.startedAt)} · ≈ ${grams(liters(s.drinks))} г чистого алкоголя</div>
+          <div class="big">${tally(s.drinks)}</div>
+          <div class="muted">с ${fmtTime(s.startedAt)} · ≈ ${grams(s.drinks)} г чистого алкоголя</div>
           ${sessionControls(s, true)}
           <p class="muted">Отметка снимется сама через 8 часов.</p>
         </div>`
@@ -671,6 +726,7 @@
         <div class="stats">
           <div><div class="n">${st.beers}</div><div class="muted">${plural(st.beers, ['пиво', 'пива', 'пив'])}</div></div>
           <div><div class="n">${fmtNum(st.liters)}</div><div class="muted">литров</div></div>
+          <div><div class="n">${st.shots}</div><div class="muted">${plural(st.shots, ['стопка', 'стопки', 'стопок'])}</div></div>
           <div><div class="n">${st.pubs}</div><div class="muted">${plural(st.pubs, ['пивная', 'пивные', 'пивных'])}</div></div>
         </div>
       </div>
@@ -694,8 +750,10 @@
         </div>
         <p class="muted">${p.visibility === 'friends'
           ? 'Друзья видят пивную, где вы отметились, и сколько выпито.'
-          : 'Вы невидимка: пиво считается только для вас.'}</p>
+          : 'Вы невидимка: выпитое считается только для вас.'}</p>
       </div>
+
+      ${installCard()}
 
       ${state.history.length ? `<div class="card">
           <h3>История</h3>
@@ -704,7 +762,7 @@
             return `<li class="item" role="button" tabindex="0" data-action="select-pub" data-id="${esc(h.pubId)}">
               <div class="ico">🍺</div>
               <div class="main"><div class="title">${esc(hp ? hp.name : 'Пивная')}</div><div class="sub">${fmtDate(h.startedAt)}, ${fmtTime(h.startedAt)}–${fmtTime(h.endedAt)}</div></div>
-              <div class="meta"><b>${beers(h.drinks.length)}</b><br>${fmtL(liters(h.drinks))}</div>
+              <div class="meta">${drinksMeta(h.drinks)}</div>
             </li>`;
           }).join('')}</ul>
         </div>` : ''}
@@ -758,7 +816,7 @@
     const s = mySession();
     const pub = s && pubById(s.pubId);
     $('#chip').innerHTML = pub ? `<div class="chip">
-        <button class="chip-text" data-action="tab" data-tab="me" title="Моя отметка">🍺 ${esc(pub.name)} · ${s.drinks.length}</button>
+        <button class="chip-text" data-action="tab" data-tab="me" title="Моя отметка">🍺 ${esc(pub.name)} · ${countBeers(s.drinks)}${countShots(s.drinks) ? ` · 🥃${countShots(s.drinks)}` : ''}</button>
         <button class="chip-add" data-action="drink" data-size="0.5" aria-label="Добавить пиво 0,5 л">＋0,5</button>
       </div>` : '';
   }
@@ -793,7 +851,15 @@
     'select-pub': el => selectPub(el.dataset.id),
     back() { state.view = 'list'; state.selectedId = null; render(); },
     checkin: el => checkIn(el.dataset.id),
-    drink: el => addDrink(parseFloat(el.dataset.size)),
+    drink: el => addDrink(parseFloat(el.dataset.size), el.dataset.kind),
+    install: async () => {
+      const prompt = state.installPrompt;
+      if (!prompt) return;
+      state.installPrompt = null;                // окно установки можно показать только один раз
+      prompt.prompt();
+      await prompt.userChoice.catch(() => null);
+      render();
+    },
     undo: undoDrink,
     end: endSession,
     vote: el => vote(state.selectedId, el.dataset.v),
@@ -933,6 +999,22 @@
     $('#pubList').innerHTML = pubListHTML();
   });
   window.addEventListener('resize', () => map.invalidateSize());
+
+  // установка как приложение: Chrome/Android сообщает, что сайт можно установить
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    state.installPrompt = e;
+    render();
+  });
+  window.addEventListener('appinstalled', () => {
+    state.installPrompt = null;
+    toast('Tankovka установлена — ищите иконку на главном экране 🍺');
+    render();
+  });
+  // офлайн-копия интерфейса: сначала сеть, без сети — последняя сохранённая версия
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => { /* без офлайна тоже работает */ });
+  }
 
   // ---------- старт ----------
   async function boot() {

@@ -30,13 +30,14 @@ a { color: var(--amber-dark); }
 
 /* ---------- верхняя панель ---------- */
 .topbar {
-  height: var(--top-h);
+  /* в установленном приложении на iPhone шапка заходит под строку состояния */
+  height: calc(var(--top-h) + env(safe-area-inset-top, 0px));
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 16px;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
   background: var(--brown);
   color: #fff;
   z-index: 1001;
@@ -98,7 +99,7 @@ a { color: var(--amber-dark); }
 }
 .tabs button.active { color: var(--brown); border-bottom-color: var(--amber); }
 
-.view { padding: 14px 16px 24px; }
+.view { padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
 
 /* ---------- элементы ---------- */
 .row { display: flex; gap: 8px; align-items: center; }
@@ -138,6 +139,13 @@ a { color: var(--amber-dark); }
 .btn-ghost { border-color: transparent; background: none; color: var(--muted); padding-left: 0; }
 .btn-danger { color: var(--no); }
 .btn-ok { background: #E3F4EA; border-color: var(--ok); color: var(--ok); }
+.btn-shot { background: #F3ECFA; border-color: #B79AD6; color: #4B2E6B; }
+.btn-shot:hover:not(:disabled) { border-color: #7E57A8; }
+
+/* ряды кнопок «пиво» и «крепкое» */
+.drink-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.drink-label { flex: 0 0 92px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.drink-row .btn { flex: 1 1 0; min-width: 96px; }
 .btn-no { background: #FBE7E5; border-color: var(--no); color: var(--no); }
 
 .badge {
@@ -185,8 +193,8 @@ a { color: var(--amber-dark); }
   font-size: 13px; line-height: 1.45;
 }
 
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
-.stats .n { font-size: 24px; font-weight: 800; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+.stats .n { font-size: 22px; font-weight: 800; }
 
 .profile { display: flex; gap: 12px; align-items: center; }
 .avatar {
@@ -258,7 +266,7 @@ a { color: var(--amber-dark); }
 .adding #map { cursor: crosshair; }
 
 .toast {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   z-index: 2000;
   max-width: calc(100vw - 32px);
   padding: 10px 16px; border-radius: 10px;
