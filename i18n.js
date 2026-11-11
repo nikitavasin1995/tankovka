@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Tankovka — переводы интерфейса: чешский, английский, немецкий, русский, украинский.
+ * Natankováno — переводы интерфейса: чешский, английский, немецкий, русский, украинский.
  * Каждая строка: L(cs, en, de, ru, uk). Формы множественного числа — объекты
  * { one, few, many, other } по правилам Intl.PluralRules для каждого языка.
  * Чтобы добавить язык: допишите его в LANGS и добавьте шестой аргумент в L().
@@ -20,7 +20,7 @@ window.TK_I18N = (function () {
 
   const T = {
     // ---------- шапка, вкладки ----------
-    title: L('Tankovka — tankové pivo na mapě Česka', 'Tankovka — tank beer on the map of Czechia', 'Tankovka — Tankbier auf der Karte Tschechiens', 'Tankovka — танковое пиво на карте Чехии', 'Tankovka — танкове пиво на мапі Чехії'),
+    title: L('Natankováno — tankové pivo na mapě Česka', 'Natankováno — tank beer on the map of Czechia', 'Natankováno — Tankbier auf der Karte Tschechiens', 'Natankováno — танковое пиво на карте Чехии', 'Natankováno — танкове пиво на мапі Чехії'),
     tagline: L('jen tankové', 'tank beer only', 'nur Tankbier', 'только танковое', 'тільки танкове'),
     map_label: L('Mapa hospod', 'Map of pubs', 'Kneipenkarte', 'Карта пивных', 'Мапа пивних'),
     lang_label: L('Jazyk', 'Language', 'Sprache', 'Язык', 'Мова'),
@@ -100,7 +100,7 @@ window.TK_I18N = (function () {
     vote_no_thanks: L('Díky! Zaznamenáno, že tankové už tu nemají', 'Thanks! Noted that there’s no tank beer here any more', 'Danke! Vermerkt: Hier gibt es kein Tankbier mehr', 'Спасибо! Учтём, что танкового здесь больше нет', 'Дякуємо! Врахуємо, що танкового тут більше немає'),
     enter_friend_code: L('Zadejte kód přítele', 'Enter a friend’s code', 'Gib den Code deines Freundes ein', 'Введите код друга', 'Введіть код друга'),
     friend_added: L('{who} je teď mezi vašimi přáteli', '{who} is now your friend', '{who} ist jetzt in deiner Freundesliste', '{who} теперь у вас в друзьях', '{who} тепер у вас у друзях'),
-    invite_text: L('Přidej si mě do přátel v Tankovce 🍺 — mapa tankového piva', 'Add me as a friend on Tankovka 🍺 — the tank beer map', 'Füg mich in Tankovka als Freund hinzu 🍺 — die Tankbier-Karte', 'Добавляйся ко мне в друзья в Tankovka 🍺 — карта танкового пива', 'Додавайся до мене в друзі в Tankovka 🍺 — мапа танкового пива'),
+    invite_text: L('Přidej si mě do přátel v aplikaci Natankováno 🍺 — mapa tankového piva', 'Add me as a friend on Natankováno 🍺 — the tank beer map', 'Füg mich in Natankováno als Freund hinzu 🍺 — die Tankbier-Karte', 'Добавляйся ко мне в друзья в Natankováno 🍺 — карта танкового пива', 'Додавайся до мене в друзі в Natankováno 🍺 — мапа танкового пива'),
     invite_copied: L('Odkaz s pozvánkou zkopírován', 'Invite link copied', 'Einladungslink kopiert', 'Ссылка-приглашение скопирована', 'Посилання-запрошення скопійовано'),
     invite_prompt: L('Zkopírujte odkaz s pozvánkou:', 'Copy the invite link:', 'Kopiere den Einladungslink:', 'Скопируйте ссылку-приглашение:', 'Скопіюйте посилання-запрошення:'),
     you_are_here: L('Jste tady', 'You’re here', 'Du bist hier', 'Вы здесь', 'Ви тут'),
@@ -191,7 +191,7 @@ window.TK_I18N = (function () {
       'Видны только друзья, которые сами отметились в пивной, — постоянной слежки по GPS нет. Список обновляется каждые 30 секунд.',
       'Видно лише друзів, які самі відмітилися в пивній, — постійного стеження за GPS немає. Список оновлюється кожні 30 секунд.'),
     no_friends_drinking: L('Teď není nikdo z přátel v hospodě.', 'None of your friends are at a pub right now.', 'Gerade ist keiner deiner Freunde in einer Kneipe.', 'Сейчас никто из друзей не отметился в пивной.', 'Зараз ніхто з друзів не відмітився в пивній.'),
-    no_friends_yet: L('V Tankovce zatím nemáte přátele. Pošlete jim pozvánku ze sekce „Já“.', 'You have no friends on Tankovka yet. Send them an invite link from the “Me” tab.', 'Du hast noch keine Freunde in Tankovka. Schick ihnen einen Einladungslink aus dem Bereich „Ich“.', 'У вас пока нет друзей в Tankovka. Отправьте им ссылку-приглашение из раздела «Я».', 'У вас поки немає друзів у Tankovka. Надішліть їм посилання-запрошення з розділу «Я».'),
+    no_friends_yet: L('V aplikaci zatím nemáte přátele. Pošlete jim pozvánku ze sekce „Já“.', 'You have no friends on Natankováno yet. Send them an invite link from the “Me” tab.', 'Du hast noch keine Freunde in Natankováno. Schick ihnen einen Einladungslink aus dem Bereich „Ich“.', 'У вас пока нет друзей в Natankováno. Отправьте им ссылку-приглашение из раздела «Я».', 'У вас поки немає друзів у Natankováno. Надішліть їм посилання-запрошення з розділу «Я».'),
     invite_friends_btn: L('Pozvat přátele', 'Invite friends', 'Freunde einladen', 'Пригласить друзей', 'Запросити друзів'),
 
     // ---------- вход и регистрация ----------
@@ -216,18 +216,18 @@ window.TK_I18N = (function () {
     welcome_back: L('Vítejte zpět! 🍺', 'Welcome back! 🍺', 'Willkommen zurück! 🍺', 'С возвращением! 🍺', 'З поверненням! 🍺'),
 
     // ---------- установка на телефон ----------
-    install_h: L('📲 Tankovka na ploše telefonu', '📲 Tankovka on your home screen', '📲 Tankovka auf dem Startbildschirm', '📲 Tankovka на главном экране', '📲 Tankovka на головному екрані'),
+    install_h: L('📲 Natankováno na ploše telefonu', '📲 Natankováno on your home screen', '📲 Natankováno auf dem Startbildschirm', '📲 Natankováno на главном экране', '📲 Natankováno на головному екрані'),
     install_text: L('Ikona otevře mapu hned, bez prohlížeče — jako běžná aplikace.', 'The icon opens the map straight away, without the browser — like a normal app.', 'Das Symbol öffnet die Karte direkt, ohne Browser — wie eine normale App.', 'Иконка откроет карту сразу, без браузера — как обычное приложение.', 'Іконка відкриє мапу одразу, без браузера — як звичайний застосунок.'),
     install_btn: L('📲 Nainstalovat aplikaci', '📲 Install the app', '📲 App installieren', '📲 Установить приложение', '📲 Встановити застосунок'),
     install_ios: L('V Safari klepněte na „Sdílet“ <b>⬆︎</b> dole na obrazovce → <b>„Přidat na plochu“</b>.', 'In Safari tap “Share” <b>⬆︎</b> at the bottom → <b>“Add to Home Screen”</b>.', 'Tippe in Safari unten auf „Teilen“ <b>⬆︎</b> → <b>„Zum Home-Bildschirm“</b>.', 'В Safari нажмите «Поделиться» <b>⬆︎</b> внизу экрана → <b>«На экран „Домой“»</b>.', 'У Safari натисніть «Поділитися» <b>⬆︎</b> унизу екрана → <b>«На початковий екран»</b>.'),
     install_other: L('Otevřete menu prohlížeče <b>⋮</b> → <b>„Přidat na plochu“</b> nebo <b>„Instalovat aplikaci“</b>.', 'Open the browser menu <b>⋮</b> → <b>“Add to Home screen”</b> or <b>“Install app”</b>.', 'Öffne das Browsermenü <b>⋮</b> → <b>„Zum Startbildschirm hinzufügen“</b> oder <b>„App installieren“</b>.', 'Откройте меню браузера <b>⋮</b> → <b>«Добавить на главный экран»</b> или <b>«Установить приложение»</b>.', 'Відкрийте меню браузера <b>⋮</b> → <b>«Додати на головний екран»</b> або <b>«Встановити застосунок»</b>.'),
-    installed_toast: L('Tankovka je nainstalovaná — hledejte ikonu na ploše 🍺', 'Tankovka installed — look for the icon on your home screen 🍺', 'Tankovka installiert — such das Symbol auf dem Startbildschirm 🍺', 'Tankovka установлена — ищите иконку на главном экране 🍺', 'Tankovka встановлено — шукайте іконку на головному екрані 🍺'),
+    installed_toast: L('Aplikace Natankováno je nainstalovaná — hledejte ikonu na ploše 🍺', 'Natankováno installed — look for the icon on your home screen 🍺', 'Natankováno installiert — such das Symbol auf dem Startbildschirm 🍺', 'Приложение Natankováno установлено — ищите иконку на главном экране 🍺', 'Застосунок Natankováno встановлено — шукайте іконку на головному екрані 🍺'),
 
     // ---------- профиль ----------
     your_profile: L('Váš profil', 'Your profile', 'Dein Profil', 'Ваш профиль', 'Ваш профіль'),
     profile_not_found: L('Profil nenalezen. Zkuste se odhlásit a znovu přihlásit.', 'Profile not found. Try logging out and in again.', 'Profil nicht gefunden. Melde dich ab und wieder an.', 'Профиль не найден. Попробуйте выйти и войти снова.', 'Профіль не знайдено. Спробуйте вийти й увійти знову.'),
     logout: L('Odhlásit se', 'Log out', 'Abmelden', 'Выйти', 'Вийти'),
-    member_since: L('v Tankovce od {date}', 'on Tankovka since {date}', 'bei Tankovka seit {date}', 'в Tankovka с {date}', 'у Tankovka з {date}'),
+    member_since: L('v aplikaci od {date}', 'member since {date}', 'dabei seit {date}', 'в приложении с {date}', 'у застосунку з {date}'),
     now_at: L('Teď: {pub}', 'Now: {pub}', 'Jetzt: {pub}', 'Сейчас: {pub}', 'Зараз: {pub}'),
     since_alcohol: L('od {time} · ≈ {g} g čistého alkoholu', 'since {time} · ≈ {g} g of pure alcohol', 'seit {time} · ≈ {g} g reiner Alkohol', 'с {time} · ≈ {g} г чистого алкоголя', 'з {time} · ≈ {g} г чистого алкоголю'),
     auto_end_note: L('Návštěva se sama ukončí po 8 hodinách.', 'Your check-in ends automatically after 8 hours.', 'Dein Check-in endet automatisch nach 8 Stunden.', 'Отметка снимется сама через 8 часов.', 'Відмітка зніметься сама через 8 годин.'),

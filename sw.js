@@ -1,8 +1,8 @@
-// Tankovka — service worker: позволяет установить сайт как приложение
+// Natankováno — service worker: позволяет установить сайт как приложение
 // и открыть интерфейс без сети. Всегда сначала берём свежую версию из сети,
 // а сохранённую копию используем только когда сети нет — так обновления
 // доходят до всех сразу. Данные Supabase, карта и библиотеки не кешируются.
-const CACHE = 'tankovka-v3';
+const CACHE = 'natankovano-v4';
 const SHELL = [
   './', 'index.html', 'styles.css', 'i18n.js', 'app.js', 'config.js', 'data/pubs.js',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',

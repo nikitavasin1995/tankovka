@@ -76,9 +76,25 @@ a { color: var(--amber-dark); }
   font-weight: 700;
 }
 .chip-text {
+  display: flex; min-width: 0; gap: 4px;
   background: none; border: 0; padding: 0; color: inherit; font-weight: 700;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
 }
+/* на узком экране сжимается только название пивной, счётчик всегда виден */
+.chip-pub { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.chip-count { flex: none; }
+.chip { overflow: hidden; }
+/* узкие телефоны: шапка компактнее, чтобы счётчик в «пилюле» не прятался */
+@media (max-width: 480px) { .chip-pub { display: none; } }
+@media (max-width: 400px) {
+  .topbar { gap: 8px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+  .brand { font-size: 16px; }
+  .top-right { gap: 6px; }
+  .chip { gap: 6px; padding-left: 9px; }
+  .chip-add { padding: 5px 8px; }
+  .lang { padding: 5px 8px; }
+}
+@media (max-width: 340px) { #langCode { display: none; } }
 .chip-add {
   flex: none; border: 0; border-radius: 999px; padding: 5px 10px;
   background: var(--brown); color: #fff; font-weight: 700;
@@ -159,9 +175,10 @@ a { color: var(--amber-dark); }
 .btn-shot:hover:not(:disabled) { border-color: #7E57A8; }
 
 /* ряды кнопок «пиво» и «крепкое» */
-.drink-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.drink-label { flex: 0 0 92px; font-size: 13px; font-weight: 700; color: var(--muted); }
-.drink-row .btn { flex: 1 1 0; min-width: 96px; }
+.drink-row { display: flex; gap: 8px; align-items: center; }
+.drink-label { flex: 0 0 78px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.drink-row .btn { flex: 1 1 0; min-width: 0; padding-left: 8px; padding-right: 8px; white-space: nowrap; }
+@media (max-width: 340px) { .drink-label { flex-basis: 64px; font-size: 12px; } }
 .btn-no { background: #FBE7E5; border-color: var(--no); color: var(--no); }
 
 .badge {

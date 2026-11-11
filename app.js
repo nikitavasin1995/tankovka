@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Tankovka — танковое пиво на карте Чехии.
+ * Natankováno — танковое пиво на карте Чехии (раньше называлось Tankovka).
  * Данные (профили, друзья, отметки, пиво, пивные) хранятся в Supabase — см. supabase/schema.sql.
  * Если config.js не заполнен, приложение показывает карту из data/pubs.js без профилей.
  */
@@ -363,7 +363,7 @@
     const url = `${location.origin}${location.pathname}?friend=${state.profile.friend_code}`;
     const text = t('invite_text');
     if (navigator.share) {
-      try { await navigator.share({ title: 'Tankovka', text, url }); return; } catch (e) { /* отменили — копируем */ }
+      try { await navigator.share({ title: 'Natankováno', text, url }); return; } catch (e) { /* отменили — копируем */ }
     }
     try {
       await navigator.clipboard.writeText(url);
@@ -813,7 +813,7 @@
     const s = mySession();
     const pub = s && pubById(s.pubId);
     $('#chip').innerHTML = pub ? `<div class="chip">
-        <button class="chip-text" data-action="tab" data-tab="me" title="${t('my_checkin')}">🍺 ${esc(pub.name)} · ${countBeers(s.drinks)}${countShots(s.drinks) ? ` · 🥃${countShots(s.drinks)}` : ''}</button>
+        <button class="chip-text" data-action="tab" data-tab="me" title="${t('my_checkin')}"><span class="chip-pub">${esc(pub.name)}</span><span class="chip-count">🍺${countBeers(s.drinks)}${countShots(s.drinks) ? ` 🥃${countShots(s.drinks)}` : ''}</span></button>
         <button class="chip-add" data-action="drink" data-size="0.5" aria-label="${t('add_beer_aria', { v: fmtL(0.5) })}">＋${fmtNum(0.5)}</button>
       </div>` : '';
   }
