@@ -64,21 +64,20 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  function plural(n, forms) {
-    const m10 = n % 10, m100 = n % 100;
-    if (m10 === 1 && m100 !== 11) return forms[0];
-    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return forms[1];
-    return forms[2];
-  }
-  const beers = n => `${n} ${plural(n, ['пиво', 'пива', 'пив'])}`;
-  const shots = n => `${n} ${plural(n, ['стопка', 'стопки', 'стопок'])}`;
+  // ---------- языки (см. i18n.js) ----------
+  const I18N = window.TK_I18N;
+  const t = I18N.t, tn = I18N.tn;
+
+  const beers = n => tn('n_beers', n);
+  const shots = n => tn('n_shots', n);
   const isShot = d => d.kind === 'shot';
   const countBeers = drinks => drinks.filter(d => !isShot(d)).length;
   const countShots = drinks => drinks.filter(isShot).length;
   // литры считаем только по пиву: стопки — отдельным счётчиком
   const liters = drinks => Math.round(drinks.reduce((sum, d) => sum + (isShot(d) ? 0 : d.size), 0) * 10) / 10;
-  const fmtNum = n => Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 1 });
-  const fmtL = l => `${fmtNum(l)} л`;
+  const fmtNum = n => Number(n).toLocaleString(I18N.locale, { maximumFractionDigits: 1 });
+  const fmtL = l => `${fmtNum(l)} ${t('unit_l')}`;
+  const fmtMl = l => `${Math.round(l * 1000)} ${t('unit_ml')}`;
   // граммы чистого спирта: объём × крепость × плотность спирта
   const grams = drinks => Math.round(drinks.reduce((g, d) => g + d.size * 1000 * (isShot(d) ? SHOT_ABV : ABV) * 0.789, 0));
   // «2 пива + 3 стопки» (без литров — для коротких строк)
@@ -98,8 +97,8 @@
     if (!nb && ns) return `<b>🥃 ${shots(ns)}</b>`;
     return `<b>${beers(nb)}</b><br>${fmtL(liters(drinks))}${ns ? ` · 🥃${ns}` : ''}`;
   }
-  const fmtTime = ts => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  const fmtDate = ts => new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  const fmtTime = ts => new Date(ts).toLocaleTimeString(I18N.locale, { hour: '2-digit', minute: '2-digit' });
+  const fmtDate = ts => new Date(ts).toLocaleDateString(I18N.locale, { day: 'numeric', month: 'long' });
 
   function distance(a, b) {
     const R = 6371000, rad = x => x * Math.PI / 180;
@@ -107,7 +106,7 @@
     const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
   }
-  const fmtDist = m => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} м` : `${fmtNum(m / 1000)} км`;
+  const fmtDist = m => m < 1000 ? `${Math.max(10, Math.round(m / 10) * 10)} ${t('unit_m')}` : `${fmtNum(m / 1000)} ${t('unit_km')}`;
 
   let toastTimer;
   function toast(msg) {
@@ -118,26 +117,27 @@
     toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
   }
 
+  // коды ошибок из supabase/schema.sql → ключи переводов
   const ERRORS = {
-    friend_not_found: 'Нет пользователя с таким кодом',
-    self_friend: 'Это ваш собственный код 🙂',
-    no_active_session: 'Сначала отметьтесь в пивной',
-    too_many: 'Максимум 60 напитков за одну отметку',
-    bad_size: 'Такой объём добавить нельзя',
-    pub_not_found: 'Пивная не найдена',
-    not_authenticated: 'Войдите в профиль',
+    friend_not_found: 'err_friend_not_found',
+    self_friend: 'err_self_friend',
+    no_active_session: 'err_no_session',
+    too_many: 'err_too_many',
+    bad_size: 'err_bad_size',
+    pub_not_found: 'err_pub_not_found',
+    not_authenticated: 'err_not_auth',
   };
   function errText(e) {
     const m = (e && (e.message || e.error_description)) || String(e);
-    for (const key in ERRORS) if (m.includes(key)) return ERRORS[key];
-    if (/Invalid login credentials/i.test(m)) return 'Неверный email или пароль';
-    if (/already registered|already been registered|already exists/i.test(m)) return 'Такой email уже зарегистрирован — войдите';
-    if (/Password should be|password.*(short|characters)/i.test(m)) return 'Пароль слишком короткий — минимум 6 символов';
-    if (/valid email|invalid format|validate email/i.test(m)) return 'Проверьте email';
-    if (/rate limit|too many/i.test(m)) return 'Слишком много попыток, подождите немного';
-    if (/Email not confirmed/i.test(m)) return 'Email не подтверждён — проверьте почту';
-    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Нет связи с сервером';
-    return 'Ошибка: ' + m;
+    for (const key in ERRORS) if (m.includes(key)) return t(ERRORS[key]);
+    if (/Invalid login credentials/i.test(m)) return t('err_bad_login');
+    if (/already registered|already been registered|already exists/i.test(m)) return t('err_exists');
+    if (/Password should be|password.*(short|characters)/i.test(m)) return t('err_short_pw');
+    if (/valid email|invalid format|validate email/i.test(m)) return t('err_email');
+    if (/rate limit|too many/i.test(m)) return t('err_rate');
+    if (/Email not confirmed/i.test(m)) return t('err_unconfirmed');
+    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return t('err_network');
+    return t('err_generic', { m });
   }
 
   async function call(request) {
@@ -149,7 +149,6 @@
   // ---------- данные ----------
   const pubById = id => state.pubs.find(p => p.id === id);
   const refPoint = () => state.myPos || map.getCenter();
-  const refLabel = () => state.myPos ? 'от вас' : 'от центра карты';
   const me = () => state.user && state.user.id;
   const mySession = () => state.live.find(s => s.userId === me());
   const personById = id => (state.profile && state.profile.id === id) ? state.profile : state.friends.find(f => f.id === id);
@@ -253,12 +252,12 @@
   }
 
   function requireLogin(pendingPub) {
-    if (!sb) { toast('Сервер ещё не подключён'); return false; }
+    if (!sb) { toast(t('no_server')); return false; }
     if (state.user && state.profile) return true;
     if (pendingPub) state.pendingCheckin = pendingPub;
     state.tab = 'me';
     render();
-    toast('Сначала войдите или зарегистрируйтесь');
+    toast(t('login_first'));
     return false;
   }
 
@@ -270,14 +269,14 @@
       await call(sb.rpc('check_in', { p_pub: pubId }));
       await Promise.all([loadLive(), loadMine()]);
     });
-    if (ok) toast(current ? 'Прошлая пивная сохранена в историю. Вы отметились здесь!' : 'Вы отметились! Добавляйте пиво кнопкой «+»');
+    if (ok) toast(t(current ? 'checked_in_moved' : 'checked_in'));
   }
 
   // kind: 'beer' — пиво 0,3/0,5 л, 'shot' — стопка крепкого 0,02/0,04 л
   async function addDrink(size, kind) {
     kind = kind === 'shot' ? 'shot' : 'beer';
     const s = mySession();
-    if (!s) return toast('Сначала отметьтесь в пивной');
+    if (!s) return toast(t('err_no_session'));
     const drink = { kind, size, at: Date.now() };
     s.drinks.push(drink);                      // сразу показываем, потом сохраняем
     render();
@@ -317,7 +316,7 @@
       await call(sb.rpc('end_session'));
       await Promise.all([loadLive(), loadMine()]);
     });
-    if (ok) toast(s.drinks.length ? `Записано: ${tally(s.drinks)}` : 'Отметка снята');
+    if (ok) toast(s.drinks.length ? t('saved_tally', { t: tally(s.drinks) }) : t('checkin_removed'));
   }
 
   async function vote(pubId, value) {
@@ -333,17 +332,17 @@
       }
       await loadVoteCounts();
     });
-    if (ok && state.myVotes[pubId] === 'yes') toast('Спасибо! Отмечено, что здесь танковое');
-    if (ok && state.myVotes[pubId] === 'no') toast('Спасибо! Учтём, что танкового здесь больше нет');
+    if (ok && state.myVotes[pubId] === 'yes') toast(t('vote_yes_thanks'));
+    if (ok && state.myVotes[pubId] === 'no') toast(t('vote_no_thanks'));
   }
 
   async function addFriend(code, fromInvite) {
     code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const forget = () => { state.pendingFriendCode = null; localStorage.removeItem(PENDING_FRIEND_KEY); };
-    if (!code) return toast('Введите код друга');
+    if (!code) return toast(t('enter_friend_code'));
     if (state.profile && code === state.profile.friend_code) {
       forget();
-      if (!fromInvite) toast(ERRORS.self_friend);
+      if (!fromInvite) toast(t('err_self_friend'));
       return;
     }
     try {
@@ -353,7 +352,7 @@
       const input = $('#friendCode');
       if (input) input.value = '';
       render();
-      toast(`${friend.emoji} ${friend.name} теперь у вас в друзьях`);
+      toast(t('friend_added', { who: `${friend.emoji} ${friend.name}` }));
     } catch (e) {
       if (fromInvite) forget();
       toast(errText(e));
@@ -362,15 +361,15 @@
 
   async function shareInvite() {
     const url = `${location.origin}${location.pathname}?friend=${state.profile.friend_code}`;
-    const text = 'Добавляйся ко мне в друзья в Tankovka 🍺 — карта танкового пива';
+    const text = t('invite_text');
     if (navigator.share) {
       try { await navigator.share({ title: 'Tankovka', text, url }); return; } catch (e) { /* отменили — копируем */ }
     }
     try {
       await navigator.clipboard.writeText(url);
-      toast('Ссылка-приглашение скопирована');
+      toast(t('invite_copied'));
     } catch (e) {
-      window.prompt('Скопируйте ссылку-приглашение:', url);
+      window.prompt(t('invite_prompt'), url);
     }
   }
 
@@ -417,7 +416,7 @@
     if (state.myPos) {
       if (!meMarker) {
         meMarker = L.circleMarker(state.myPos, { radius: 8, color: '#fff', weight: 3, fillColor: '#2A7DE1', fillOpacity: 1 })
-          .bindTooltip('Вы здесь').addTo(map);
+          .bindTooltip(t('you_are_here')).addTo(map);
       } else {
         meMarker.setLatLng(state.myPos);
       }
@@ -432,7 +431,7 @@
       icon: L.divIcon({ className: '', html: '<div class="pin pin-user">＋</div>', iconSize: [34, 34], iconAnchor: [17, 17] }),
     }).addTo(map);
     const status = $('#addPoint');
-    if (status) status.textContent = '✔ Точка на карте выбрана. Можно передвинуть — нажмите ещё раз.';
+    if (status) status.textContent = t('point_picked_move');
   });
 
   map.on('moveend', () => {
@@ -462,22 +461,22 @@
   }
 
   function locate() {
-    if (!navigator.geolocation) return toast('Браузер не умеет определять местоположение');
-    toast('Определяю, где вы…');
+    if (!navigator.geolocation) return toast(t('geo_unsupported'));
+    toast(t('geo_locating'));
     navigator.geolocation.getCurrentPosition(
       pos => {
         state.myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         map.setView([state.myPos.lat, state.myPos.lng], 14);
         render();
-        toast('Готово — расстояния считаются от вас');
+        toast(t('geo_done'));
       },
-      () => toast('Не получилось определить местоположение. Считаю от центра карты.'),
+      () => toast(t('geo_failed')),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
 
   // ---------- экраны ----------
-  const offlineNote = '<div class="note">Сервер ещё не подключён: карта работает, а профили, друзья и счётчик пива появятся после настройки Supabase (см. SETUP.md).</div>';
+  const offlineNote = () => `<div class="note">${t('offline_note')}</div>`;
 
   function pubListHTML() {
     const q = state.query.trim().toLowerCase();
@@ -486,14 +485,14 @@
       .filter(p => !q || [p.name, p.city, p.brand, p.address].join(' ').toLowerCase().includes(q))
       .map(p => ({ p, d: distance(ref, p) }))
       .sort((a, b) => a.d - b.d);
-    if (!rows.length) return '<li class="muted">Ничего не нашлось. Знаете такое место — добавьте его.</li>';
+    if (!rows.length) return `<li class="muted">${t('nothing_found')}</li>`;
     return rows.map(({ p, d }) => {
       const n = drinkersAt(p.id).length;
       return `<li class="item" role="button" tabindex="0" data-action="select-pub" data-id="${esc(p.id)}">
         <div class="ico">🍺</div>
         <div class="main">
-          <div class="title">${esc(p.name)} ${p.source.type === 'user' ? '<span class="badge badge-user">новое</span>' : ''}</div>
-          <div class="sub">${esc(p.city || 'Чехия')} · ${esc(p.brand || 'марка не указана')}</div>
+          <div class="title">${esc(p.name)} ${p.source.type === 'user' ? `<span class="badge badge-user">${t('badge_new')}</span>` : ''}</div>
+          <div class="sub">${esc(p.city || t('country'))} · ${esc(p.brand || t('no_brand'))}</div>
         </div>
         <div class="meta">${fmtDist(d)}${n ? `<br>👥 ${n}` : ''}</div>
       </li>`;
@@ -502,15 +501,15 @@
 
   function viewList() {
     return `<div class="view">
-      <div class="row wrap"><span class="badge badge-tank">ТОЛЬКО ТАНКОВОЕ</span><span class="muted">${state.pubs.length} мест на карте</span></div>
-      <input id="search" class="input mt" type="search" placeholder="Название, город или марка" aria-label="Поиск пивной" value="${esc(state.query)}">
+      <div class="row wrap"><span class="badge badge-tank">${t('only_tank_badge')}</span><span class="muted">${tn('n_places', state.pubs.length)}</span></div>
+      <input id="search" class="input mt" type="search" placeholder="${t('search_ph')}" aria-label="${t('search_label')}" value="${esc(state.query)}">
       <div class="row wrap mt">
-        <button class="btn" data-action="locate">📍 Рядом со мной</button>
-        <button class="btn" data-action="add-start">＋ Добавить пивную</button>
+        <button class="btn" data-action="locate">${t('near_me_btn')}</button>
+        <button class="btn" data-action="add-start">${t('add_pub_btn')}</button>
       </div>
-      <p class="muted">Ближайшие ${refLabel()}</p>
+      <p class="muted">${t(state.myPos ? 'nearest_me' : 'nearest_center')}</p>
       <ul class="list" id="pubList">${pubListHTML()}</ul>
-      ${sb ? '' : offlineNote}
+      ${sb ? '' : offlineNote()}
     </div>`;
   }
 
@@ -522,27 +521,29 @@
     return `<li class="item" ${attrs}>
       <div class="ico ${d.isMe ? 'ico-me' : ''}">${esc(d.emoji)}</div>
       <div class="main">
-        <div class="title">${d.isMe ? 'Вы' : esc(d.name)} ${hidden ? '<span class="badge">скрыто от друзей</span>' : ''}</div>
-        <div class="sub">${opts.showPub ? esc(pub.name) + ' · ' : ''}с ${fmtTime(d.since)}</div>
+        <div class="title">${d.isMe ? t('you') : esc(d.name)} ${hidden ? `<span class="badge">${t('hidden_badge')}</span>` : ''}</div>
+        <div class="sub">${opts.showPub ? esc(pub.name) + ' · ' : ''}${t('since', { time: fmtTime(d.since) })}</div>
       </div>
       <div class="meta">${drinksMeta(d.drinks)}${opts.dist != null ? `<br>${fmtDist(opts.dist)}` : ''}</div>
     </li>`;
   }
 
   function sessionControls(s, withUndo) {
+    const beerBtn = (size, cls) => `<button class="btn ${cls}" data-action="drink" data-size="${size}" aria-label="${t('add_beer_aria', { v: fmtL(size) })}">＋ ${fmtL(size)}</button>`;
+    const shotBtn = size => `<button class="btn btn-shot" data-action="drink" data-kind="shot" data-size="${size}" aria-label="${t('add_shot_aria', { v: fmtMl(size) })}">＋ ${fmtMl(size)}</button>`;
     return `<div class="drink-row mt">
-        <span class="drink-label">🍺 Пиво</span>
-        <button class="btn btn-primary" data-action="drink" data-size="0.5">＋ 0,5 л</button>
-        <button class="btn" data-action="drink" data-size="0.3">＋ 0,3 л</button>
+        <span class="drink-label">${t('label_beer')}</span>
+        ${beerBtn(0.5, 'btn-primary')}
+        ${beerBtn(0.3, '')}
       </div>
       <div class="drink-row mt">
-        <span class="drink-label">🥃 Крепкое</span>
-        <button class="btn btn-shot" data-action="drink" data-kind="shot" data-size="0.04" aria-label="Добавить стопку 40 мл">＋ 40 мл</button>
-        <button class="btn btn-shot" data-action="drink" data-kind="shot" data-size="0.02" aria-label="Добавить стопку 20 мл">＋ 20 мл</button>
+        <span class="drink-label">${t('label_spirits')}</span>
+        ${shotBtn(0.04)}
+        ${shotBtn(0.02)}
       </div>
       <div class="row wrap mt">
-        ${withUndo ? `<button class="btn" data-action="undo" ${s.drinks.length ? '' : 'disabled'}>↶ Отменить</button>` : ''}
-        <button class="btn" data-action="end">Закончить</button>
+        ${withUndo ? `<button class="btn" data-action="undo" ${s.drinks.length ? '' : 'disabled'}>${t('undo')}</button>` : ''}
+        <button class="btn" data-action="end">${t('finish')}</button>
       </div>`;
   }
 
@@ -558,40 +559,40 @@
     const address = [p.address, p.address && p.city && !p.address.includes(p.city) ? p.city : ''].filter(Boolean).join(', ');
 
     return `<div class="view">
-      <button class="btn btn-ghost" data-action="back">← Все пивные</button>
+      <button class="btn btn-ghost" data-action="back">${t('back_all')}</button>
       <h2 class="pub-title">${esc(p.name)}</h2>
       <div class="row wrap">
         <span class="badge badge-tank">TANKOVÉ</span>
-        <span class="badge">${esc(p.brand || 'марка не указана')}</span>
-        ${isUser ? '<span class="badge badge-user">добавлено пользователем</span>' : ''}
+        <span class="badge">${esc(p.brand || t('no_brand'))}</span>
+        ${isUser ? `<span class="badge badge-user">${t('added_by_user')}</span>` : ''}
       </div>
-      <p class="muted">${esc(address || 'Адрес не указан')}${state.myPos ? ` · ${fmtDist(distance(state.myPos, p))} от вас` : ''}</p>
+      <p class="muted">${esc(address || t('no_address'))}${state.myPos ? ` · ${t('dist_from_you', { d: fmtDist(distance(state.myPos, p)) })}` : ''}</p>
 
       ${mine ? `<div class="card card-session">
-          <h3>Вы здесь</h3>
+          <h3>${t('you_are_here')}</h3>
           <div class="big">${tally(s.drinks)}</div>
           ${sessionControls(s, false)}
         </div>`
         : `<div class="row wrap">
-          <button class="btn btn-primary" data-action="checkin" data-id="${esc(p.id)}">🍺 Я тут пью</button>
-          <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank" rel="noopener">Маршрут ↗</a>
+          <button class="btn btn-primary" data-action="checkin" data-id="${esc(p.id)}">${t('drinking_here_btn')}</button>
+          <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank" rel="noopener">${t('route')}</a>
         </div>`}
 
       <div class="card">
-        <h3>Сейчас здесь пьют${state.user ? ` (${here.length})` : ''}</h3>
-        ${!state.user ? '<p class="muted">Войдите, чтобы видеть друзей в этой пивной.</p>'
+        <h3>${t('drinking_now_h')}${state.user ? ` (${here.length})` : ''}</h3>
+        ${!state.user ? `<p class="muted">${t('login_to_see_friends_here')}</p>`
           : here.length ? `<ul class="list">${here.map(d => drinkerItem(d)).join('')}</ul>`
-          : '<p class="muted">Из ваших друзей здесь пока никого.</p>'}
+          : `<p class="muted">${t('no_friends_here')}</p>`}
       </div>
 
       <div class="card">
-        <h3>Здесь правда танковое?</h3>
+        <h3>${t('really_tank_h')}</h3>
         <p class="muted">${isUser
-          ? 'Место добавлено пользователем — подтвердите, если были здесь.'
-          : `Источник: <a href="${esc(p.source.url)}" target="_blank" rel="noopener">${esc(p.source.name)}</a>. Данные могли устареть — подтвердите, если были здесь недавно.`}</p>
+          ? t('user_place_confirm')
+          : t('source_confirm', { link: `<a href="${esc(p.source.url)}" target="_blank" rel="noopener">${esc(p.source.name)}</a>` })}</p>
         <div class="row wrap">
-          <button class="btn ${vote === 'yes' ? 'btn-ok' : ''}" data-action="vote" data-v="yes" aria-pressed="${vote === 'yes'}">✔ Да, танковое · ${counts.yes}</button>
-          <button class="btn ${vote === 'no' ? 'btn-no' : ''}" data-action="vote" data-v="no" aria-pressed="${vote === 'no'}">✖ Уже нет · ${counts.no}</button>
+          <button class="btn ${vote === 'yes' ? 'btn-ok' : ''}" data-action="vote" data-v="yes" aria-pressed="${vote === 'yes'}">${t('vote_yes', { n: counts.yes })}</button>
+          <button class="btn ${vote === 'no' ? 'btn-no' : ''}" data-action="vote" data-v="no" aria-pressed="${vote === 'no'}">${t('vote_no', { n: counts.no })}</button>
         </div>
       </div>
     </div>`;
@@ -599,64 +600,64 @@
 
   function viewAdd() {
     return `<div class="view">
-      <button class="btn btn-ghost" data-action="add-cancel">← Отмена</button>
-      <h2>Новая пивная</h2>
-      <p class="muted" id="addPoint">${state.pendingPoint ? '✔ Точка на карте выбрана.' : '① Нажмите на карту, где находится пивная.'}</p>
-      <label class="field">Название<input id="aName" class="input" maxlength="60" placeholder="Например, U Kocoura"></label>
-      <label class="field">Адрес <span class="muted">(необязательно)</span><input id="aAddress" class="input" maxlength="80" placeholder="Улица и номер дома"></label>
-      <label class="field">Город<input id="aCity" class="input" maxlength="40" placeholder="Praha"></label>
-      <label class="field">Какое пиво из танка
+      <button class="btn btn-ghost" data-action="add-cancel">${t('cancel')}</button>
+      <h2>${t('new_pub_h')}</h2>
+      <p class="muted" id="addPoint">${t(state.pendingPoint ? 'point_picked' : 'step_pick_point')}</p>
+      <label class="field">${t('f_name')}<input id="aName" class="input" maxlength="60" placeholder="${t('f_name_ph')}"></label>
+      <label class="field">${t('f_address')} <span class="muted">${t('optional')}</span><input id="aAddress" class="input" maxlength="80" placeholder="${t('f_address_ph')}"></label>
+      <label class="field">${t('f_city')}<input id="aCity" class="input" maxlength="40" placeholder="Praha"></label>
+      <label class="field">${t('f_brand')}
         <select id="aBrand" class="select">
           ${BRANDS.map(b => `<option>${esc(b)}</option>`).join('')}
-          <option value="">Другое / не знаю</option>
+          <option value="">${t('f_brand_other')}</option>
         </select>
       </label>
-      <label class="check"><input type="checkbox" id="aTank"> <span>Подтверждаю: здесь наливают <b>именно танковое</b> пиво (из танков, а не из кегов)</span></label>
-      <button class="btn btn-primary" data-action="add-save">Добавить на карту</button>
+      <label class="check"><input type="checkbox" id="aTank"> <span>${t('f_tank_confirm')}</span></label>
+      <button class="btn btn-primary" data-action="add-save">${t('add_to_map')}</button>
     </div>`;
   }
 
   function viewNearby() {
-    if (!sb) return `<div class="view"><h2>Кто пьёт рядом</h2>${offlineNote}</div>`;
-    if (state.loading) return '<div class="view"><p class="muted">Загрузка…</p></div>';
+    if (!sb) return `<div class="view"><h2>${t('nearby_h')}</h2>${offlineNote()}</div>`;
+    if (state.loading) return `<div class="view"><p class="muted">${t('loading')}</p></div>`;
     if (!state.user) {
-      return `<div class="view"><h2>Кто пьёт рядом</h2>
-        <p class="muted">Войдите, чтобы видеть, в каких пивных сейчас ваши друзья и сколько они выпили.</p>
-        <button class="btn btn-primary" data-action="tab" data-tab="me">Войти или зарегистрироваться</button></div>`;
+      return `<div class="view"><h2>${t('nearby_h')}</h2>
+        <p class="muted">${t('login_to_see_nearby')}</p>
+        <button class="btn btn-primary" data-action="tab" data-tab="me">${t('login_or_signup')}</button></div>`;
     }
     const ref = refPoint();
     const rows = drinkers()
       .map(d => ({ d, m: distance(ref, pubById(d.pubId)) }))
       .sort((a, b) => (b.d.isMe ? 1 : 0) - (a.d.isMe ? 1 : 0) || a.m - b.m);
     return `<div class="view">
-      <h2>Кто пьёт рядом</h2>
-      <button class="btn" data-action="locate">📍 Определить, где я</button>
-      <p class="muted">Расстояние ${refLabel()}. Видны только друзья, которые сами отметились в пивной, — постоянной слежки по GPS нет. Список обновляется каждые 30 секунд.</p>
+      <h2>${t('nearby_h')}</h2>
+      <button class="btn" data-action="locate">${t('where_am_i')}</button>
+      <p class="muted">${t(state.myPos ? 'dist_from_me' : 'dist_from_center')} ${t('nearby_privacy')}</p>
       ${rows.length ? `<ul class="list">${rows.map(({ d, m }) => drinkerItem(d, { showPub: true, clickable: true, dist: m })).join('')}</ul>`
-        : '<p class="muted">Сейчас никто из друзей не отметился в пивной.</p>'}
-      ${state.friends.length ? '' : `<div class="note">У вас пока нет друзей в Tankovka. Отправьте им ссылку-приглашение из раздела «Я».
-        <div class="mt"><button class="btn" data-action="tab" data-tab="me">Пригласить друзей</button></div></div>`}
+        : `<p class="muted">${t('no_friends_drinking')}</p>`}
+      ${state.friends.length ? '' : `<div class="note">${t('no_friends_yet')}
+        <div class="mt"><button class="btn" data-action="tab" data-tab="me">${t('invite_friends_btn')}</button></div></div>`}
     </div>`;
   }
 
   function viewAuth() {
     const signup = state.authMode === 'signup';
     return `<div class="view">
-      ${state.pendingFriendCode ? '<div class="note" style="margin:0 0 12px">🍻 Вас пригласили в друзья! Зарегистрируйтесь или войдите — дружба добавится сама.</div>' : ''}
+      ${state.pendingFriendCode ? `<div class="note" style="margin:0 0 12px">${t('invited_note')}</div>` : ''}
       <div class="seg">
-        <button data-action="auth-mode" data-mode="signup" aria-pressed="${signup}">Регистрация</button>
-        <button data-action="auth-mode" data-mode="login" aria-pressed="${!signup}">Вход</button>
+        <button data-action="auth-mode" data-mode="signup" aria-pressed="${signup}">${t('signup_tab')}</button>
+        <button data-action="auth-mode" data-mode="login" aria-pressed="${!signup}">${t('login_tab')}</button>
       </div>
-      ${state.notice ? `<div class="note">${esc(state.notice)}</div>` : ''}
+      ${state.notice ? `<div class="note">${t(state.notice)}</div>` : ''}
       ${signup ? `
-        <label class="field">Имя или ник<input id="pName" class="input" maxlength="24" autocomplete="nickname" placeholder="Как вас называют друзья"></label>
-        <div class="field">Аватар
-          <div class="emojis">${AVATARS.map(e => `<button class="emoji" data-action="pick-emoji" data-e="${e}" aria-pressed="${e === state.pickedEmoji}" aria-label="Аватар ${e}">${e}</button>`).join('')}</div>
+        <label class="field">${t('f_nick')}<input id="pName" class="input" maxlength="24" autocomplete="nickname" placeholder="${t('f_nick_ph')}"></label>
+        <div class="field">${t('f_avatar')}
+          <div class="emojis">${AVATARS.map(e => `<button class="emoji" data-action="pick-emoji" data-e="${e}" aria-pressed="${e === state.pickedEmoji}" aria-label="${t('f_avatar_aria', { e })}">${e}</button>`).join('')}</div>
         </div>` : ''}
-      <label class="field">Email<input id="pEmail" class="input" type="email" autocomplete="email" placeholder="you@example.com"></label>
-      <label class="field">Пароль<input id="pPassword" class="input" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="${signup ? 'Минимум 6 символов' : ''}"></label>
-      ${signup ? '<label class="check"><input type="checkbox" id="p18"> <span>Мне уже исполнилось 18 лет</span></label>' : '<div class="mt"></div>'}
-      <button class="btn btn-primary" data-action="${signup ? 'signup' : 'login'}">${signup ? 'Создать профиль' : 'Войти'}</button>
+      <label class="field">${t('f_email')}<input id="pEmail" class="input" type="email" autocomplete="email" placeholder="you@example.com"></label>
+      <label class="field">${t('f_password')}<input id="pPassword" class="input" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="${signup ? t('f_password_ph') : ''}"></label>
+      ${signup ? `<label class="check"><input type="checkbox" id="p18"> <span>${t('f_18')}</span></label>` : '<div class="mt"></div>'}
+      <button class="btn btn-primary" data-action="${signup ? 'signup' : 'login'}">${t(signup ? 'create_profile' : 'login_btn')}</button>
       ${installCard()}
     </div>`;
   }
@@ -668,13 +669,11 @@
   function installCard() {
     if (isStandalone()) return '';
     const how = state.installPrompt
-      ? '<button class="btn btn-primary" data-action="install">📲 Установить приложение</button>'
-      : isIOS()
-        ? '<p class="muted">В Safari нажмите «Поделиться» <b>⬆︎</b> внизу экрана → <b>«На экран „Домой“»</b>.</p>'
-        : '<p class="muted">Откройте меню браузера <b>⋮</b> → <b>«Добавить на главный экран»</b> или <b>«Установить приложение»</b>.</p>';
+      ? `<button class="btn btn-primary" data-action="install">${t('install_btn')}</button>`
+      : `<p class="muted">${t(isIOS() ? 'install_ios' : 'install_other')}</p>`;
     return `<div class="card">
-      <h3>📲 Tankovka на главном экране</h3>
-      <p class="muted">Иконка откроет карту сразу, без браузера — как обычное приложение.</p>
+      <h3>${t('install_h')}</h3>
+      <p class="muted">${t('install_text')}</p>
       ${how}
     </div>`;
   }
@@ -682,21 +681,21 @@
   function friendItem(f) {
     const s = state.live.find(x => x.userId === f.id);
     const pub = s && pubById(s.pubId);
-    const status = pub ? `в «${esc(pub.name)}» · ${countText(s.drinks)}` : 'сейчас не в пивной';
+    const status = pub ? t('friend_at', { pub: esc(pub.name), c: countText(s.drinks) }) : t('friend_not_at_pub');
     const armed = state.armed === 'remove:' + f.id;
     return `<li class="item">
       <div class="ico">${esc(f.emoji)}</div>
       <div class="main"><div class="title">${esc(f.name)}</div><div class="sub">${status}</div></div>
-      <button class="btn btn-ghost btn-danger" data-action="remove-friend" data-id="${esc(f.id)}">${armed ? 'Точно?' : 'Убрать'}</button>
+      <button class="btn btn-ghost btn-danger" data-action="remove-friend" data-id="${esc(f.id)}">${t(armed ? 'sure_q' : 'remove')}</button>
     </li>`;
   }
 
   function viewMe() {
-    if (!sb) return `<div class="view"><h2>Ваш профиль</h2>${offlineNote}</div>`;
-    if (state.loading) return '<div class="view"><p class="muted">Загрузка…</p></div>';
+    if (!sb) return `<div class="view"><h2>${t('your_profile')}</h2>${offlineNote()}</div>`;
+    if (state.loading) return `<div class="view"><p class="muted">${t('loading')}</p></div>`;
     if (!state.user) return viewAuth();
     const p = state.profile;
-    if (!p) return '<div class="view"><p class="muted">Профиль не найден. Попробуйте выйти и войти снова.</p><button class="btn" data-action="logout">Выйти</button></div>';
+    if (!p) return `<div class="view"><p class="muted">${t('profile_not_found')}</p><button class="btn" data-action="logout">${t('logout')}</button></div>`;
 
     const s = mySession();
     const sp = s && pubById(s.pubId);
@@ -705,71 +704,69 @@
     return `<div class="view">
       <div class="profile">
         <div class="avatar">${esc(p.emoji)}</div>
-        <div><div class="title" style="font-size:18px">${esc(p.name)}</div><div class="muted">в Tankovka с ${fmtDate(p.created_at)}</div></div>
+        <div><div class="title" style="font-size:18px">${esc(p.name)}</div><div class="muted">${t('member_since', { date: fmtDate(p.created_at) })}</div></div>
       </div>
 
       ${s && sp ? `<div class="card card-session">
-          <h3>Сейчас: ${esc(sp.name)}</h3>
+          <h3>${t('now_at', { pub: esc(sp.name) })}</h3>
           <div class="big">${tally(s.drinks)}</div>
-          <div class="muted">с ${fmtTime(s.startedAt)} · ≈ ${grams(s.drinks)} г чистого алкоголя</div>
+          <div class="muted">${t('since_alcohol', { time: fmtTime(s.startedAt), g: grams(s.drinks) })}</div>
           ${sessionControls(s, true)}
-          <p class="muted">Отметка снимется сама через 8 часов.</p>
+          <p class="muted">${t('auto_end_note')}</p>
         </div>`
         : `<div class="card">
-          <h3>Вы сейчас не в пивной</h3>
-          <p class="muted">Выберите пивную на карте и нажмите «Я тут пью».</p>
-          <button class="btn" data-action="tab" data-tab="pubs">Открыть пивные</button>
+          <h3>${t('not_in_pub_h')}</h3>
+          <p class="muted">${t('not_in_pub_text')}</p>
+          <button class="btn" data-action="tab" data-tab="pubs">${t('open_pubs')}</button>
         </div>`}
 
       <div class="card">
-        <h3>За всё время</h3>
+        <h3>${t('all_time_h')}</h3>
         <div class="stats">
-          <div><div class="n">${st.beers}</div><div class="muted">${plural(st.beers, ['пиво', 'пива', 'пив'])}</div></div>
-          <div><div class="n">${fmtNum(st.liters)}</div><div class="muted">литров</div></div>
-          <div><div class="n">${st.shots}</div><div class="muted">${plural(st.shots, ['стопка', 'стопки', 'стопок'])}</div></div>
-          <div><div class="n">${st.pubs}</div><div class="muted">${plural(st.pubs, ['пивная', 'пивные', 'пивных'])}</div></div>
+          <div><div class="n">${st.beers}</div><div class="muted">${tn('w_beers', st.beers)}</div></div>
+          <div><div class="n">${fmtNum(st.liters)}</div><div class="muted">${t('w_liters')}</div></div>
+          <div><div class="n">${st.shots}</div><div class="muted">${tn('w_shots', st.shots)}</div></div>
+          <div><div class="n">${st.pubs}</div><div class="muted">${tn('w_pubs', st.pubs)}</div></div>
         </div>
       </div>
 
       <div class="card">
-        <h3>Друзья (${state.friends.length})</h3>
-        <p class="muted">Ваш код друга: <b class="code">${esc(p.friend_code)}</b></p>
-        <button class="btn btn-primary" data-action="share-invite">🔗 Пригласить по ссылке</button>
+        <h3>${t('friends_h', { n: state.friends.length })}</h3>
+        <p class="muted">${t('your_code')} <b class="code">${esc(p.friend_code)}</b></p>
+        <button class="btn btn-primary" data-action="share-invite">${t('invite_link_btn')}</button>
         <div class="row mt">
-          <input id="friendCode" class="input" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="Код друга" aria-label="Код друга">
-          <button class="btn" data-action="add-friend">Добавить</button>
+          <input id="friendCode" class="input" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="${t('friend_code_ph')}" aria-label="${t('friend_code_ph')}">
+          <button class="btn" data-action="add-friend">${t('add')}</button>
         </div>
         ${state.friends.length ? `<ul class="list">${state.friends.map(friendItem).join('')}</ul>` : ''}
       </div>
 
       <div class="card">
-        <h3>Кто видит, где я пью</h3>
+        <h3>${t('who_sees_h')}</h3>
         <div class="seg">
-          <button data-action="visibility" data-v="friends" aria-pressed="${p.visibility === 'friends'}">Друзья</button>
-          <button data-action="visibility" data-v="nobody" aria-pressed="${p.visibility === 'nobody'}">Никто</button>
+          <button data-action="visibility" data-v="friends" aria-pressed="${p.visibility === 'friends'}">${t('vis_friends')}</button>
+          <button data-action="visibility" data-v="nobody" aria-pressed="${p.visibility === 'nobody'}">${t('vis_nobody')}</button>
         </div>
-        <p class="muted">${p.visibility === 'friends'
-          ? 'Друзья видят пивную, где вы отметились, и сколько выпито.'
-          : 'Вы невидимка: выпитое считается только для вас.'}</p>
+        <p class="muted">${t(p.visibility === 'friends' ? 'vis_friends_text' : 'vis_nobody_text')}</p>
       </div>
 
       ${installCard()}
 
       ${state.history.length ? `<div class="card">
-          <h3>История</h3>
+          <h3>${t('history_h')}</h3>
           <ul class="list">${state.history.map(h => {
             const hp = pubById(h.pubId);
             return `<li class="item" role="button" tabindex="0" data-action="select-pub" data-id="${esc(h.pubId)}">
               <div class="ico">🍺</div>
-              <div class="main"><div class="title">${esc(hp ? hp.name : 'Пивная')}</div><div class="sub">${fmtDate(h.startedAt)}, ${fmtTime(h.startedAt)}–${fmtTime(h.endedAt)}</div></div>
+              <div class="main"><div class="title">${esc(hp ? hp.name : t('pub_generic'))}</div><div class="sub">${fmtDate(h.startedAt)}, ${fmtTime(h.startedAt)}–${fmtTime(h.endedAt)}</div></div>
               <div class="meta">${drinksMeta(h.drinks)}</div>
             </li>`;
           }).join('')}</ul>
         </div>` : ''}
 
       <div class="row wrap mt">
-        <button class="btn" data-action="logout">Выйти</button>
-        <button class="btn btn-ghost btn-danger" data-action="delete-me">${state.armed === 'delete-me' ? 'Точно удалить аккаунт? Нажмите ещё раз' : 'Удалить аккаунт'}</button>
+        <button class="btn" data-action="logout">${t('logout')}</button>
+        <button class="btn btn-ghost btn-danger" data-action="delete-me">${t(state.armed === 'delete-me' ? 'delete_sure' : 'delete_account')}</button>
       </div>
     </div>`;
   }
@@ -816,12 +813,30 @@
     const s = mySession();
     const pub = s && pubById(s.pubId);
     $('#chip').innerHTML = pub ? `<div class="chip">
-        <button class="chip-text" data-action="tab" data-tab="me" title="Моя отметка">🍺 ${esc(pub.name)} · ${countBeers(s.drinks)}${countShots(s.drinks) ? ` · 🥃${countShots(s.drinks)}` : ''}</button>
-        <button class="chip-add" data-action="drink" data-size="0.5" aria-label="Добавить пиво 0,5 л">＋0,5</button>
+        <button class="chip-text" data-action="tab" data-tab="me" title="${t('my_checkin')}">🍺 ${esc(pub.name)} · ${countBeers(s.drinks)}${countShots(s.drinks) ? ` · 🥃${countShots(s.drinks)}` : ''}</button>
+        <button class="chip-add" data-action="drink" data-size="0.5" aria-label="${t('add_beer_aria', { v: fmtL(0.5) })}">＋${fmtNum(0.5)}</button>
       </div>` : '';
   }
 
+  // тексты из index.html: заголовок, вкладки, подсказки, выбор языка
+  function renderStatic() {
+    document.documentElement.lang = I18N.lang;
+    document.title = t('title');
+    $('#tagline').textContent = t('tagline');
+    $('#map').setAttribute('aria-label', t('map_label'));
+    $('#addHint').textContent = t('add_hint');
+    document.querySelectorAll('.tabs button').forEach(b => { b.textContent = t('tab_' + b.dataset.tab); });
+    const sel = $('#lang');
+    if (!sel.options.length) {
+      sel.innerHTML = I18N.LANGS.map(l => `<option value="${l.code}">${esc(l.name)}</option>`).join('');
+    }
+    sel.value = I18N.lang;
+    sel.setAttribute('aria-label', t('lang_label'));
+    $('#langCode').textContent = I18N.short;
+  }
+
   function render() {
+    renderStatic();
     document.querySelectorAll('.tabs button').forEach(b => {
       const on = b.dataset.tab === state.tab;
       b.classList.toggle('active', on);
@@ -874,9 +889,9 @@
     'add-cancel'() { clearAddMode(); state.view = 'list'; render(); },
     async 'add-save'() {
       const name = value('aName');
-      if (!state.pendingPoint) return toast('Нажмите на карту, где находится пивная');
-      if (!name) return toast('Введите название');
-      if (!checked('aTank')) return toast('Добавлять можно только места с танковым пивом');
+      if (!state.pendingPoint) return toast(t('add_hint'));
+      if (!name) return toast(t('enter_name'));
+      if (!checked('aTank')) return toast(t('only_tank_places'));
       let newId = null;
       const ok = await withBusy(async () => {
         const row = await call(sb.from('pubs').insert({
@@ -895,7 +910,7 @@
       if (!ok) return;
       clearAddMode();
       selectPub(newId);
-      toast('Пивная добавлена на карту — её увидят все');
+      toast(t('pub_added'));
     },
     'pick-emoji'(el) {
       state.pickedEmoji = el.dataset.e;
@@ -904,10 +919,10 @@
     'auth-mode'(el) { state.authMode = el.dataset.mode; state.notice = ''; render(); },
     async signup() {
       const name = value('pName'), email = value('pEmail'), password = document.getElementById('pPassword').value;
-      if (!name) return toast('Введите имя или ник');
-      if (!email || !password) return toast('Введите email и пароль');
-      if (password.length < 6) return toast('Пароль слишком короткий — минимум 6 символов');
-      if (!checked('p18')) return toast('Приложение только для тех, кому есть 18');
+      if (!name) return toast(t('enter_nick'));
+      if (!email || !password) return toast(t('enter_email_pw'));
+      if (password.length < 6) return toast(t('err_short_pw'));
+      if (!checked('p18')) return toast(t('adults_only'));
       let result = null;
       const ok = await withBusy(async () => {
         result = await call(sb.auth.signUp({ email, password, options: { data: { name, emoji: state.pickedEmoji } } }));
@@ -916,16 +931,16 @@
       if (result.session) {
         state.notice = '';
         await setUser(result.session.user);
-        toast(`Привет, ${name}! Выберите пивную на карте`);
+        toast(t('hello_name', { name }));
       } else {
-        state.notice = 'Почти готово: мы отправили письмо на ваш email — откройте ссылку из него, потом войдите.';
+        state.notice = 'notice_check_email';
         state.authMode = 'login';
         render();
       }
     },
     async login() {
       const email = value('pEmail'), password = document.getElementById('pPassword').value;
-      if (!email || !password) return toast('Введите email и пароль');
+      if (!email || !password) return toast(t('enter_email_pw'));
       let result = null;
       const ok = await withBusy(async () => {
         result = await call(sb.auth.signInWithPassword({ email, password }));
@@ -933,12 +948,12 @@
       if (!ok) return;
       state.notice = '';
       await setUser(result.user);
-      toast('С возвращением! 🍺');
+      toast(t('welcome_back'));
     },
     async logout() {
       await sb.auth.signOut({ scope: 'local' });
       await setUser(null);
-      toast('Вы вышли из профиля');
+      toast(t('logged_out'));
     },
     async 'delete-me'() {
       if (state.armed !== 'delete-me') { state.armed = 'delete-me'; return render(); }
@@ -946,7 +961,7 @@
       if (!ok) return;
       await sb.auth.signOut({ scope: 'local' });
       await setUser(null);
-      toast('Аккаунт и все данные удалены');
+      toast(t('account_deleted'));
     },
     'add-friend'() { addFriend(value('friendCode'), false); },
     async 'remove-friend'(el) {
@@ -957,7 +972,7 @@
         await call(sb.rpc('remove_friend', { p_friend: id }));
         await Promise.all([loadPeople(), loadLive()]);
       });
-      if (ok) toast('Друг удалён');
+      if (ok) toast(t('friend_removed'));
     },
     'share-invite': shareInvite,
     async visibility(el) {
@@ -967,7 +982,7 @@
         await call(sb.from('profiles').update({ visibility: v }).eq('id', me()));
         state.profile.visibility = v;
       });
-      if (ok) toast(v === 'friends' ? 'Теперь друзья видят, где вы пьёте' : 'Теперь вас никто не видит');
+      if (ok) toast(t(v === 'friends' ? 'vis_now_friends' : 'vis_now_nobody'));
     },
   };
 
@@ -993,6 +1008,13 @@
     if (e.key === 'Enter' && e.target.matches('#pPassword') && !state.busy) actions[state.authMode === 'signup' ? 'signup' : 'login']();
     if (e.key === 'Enter' && e.target.matches('#friendCode')) actions['add-friend']();
   });
+  // смена языка: запоминаем выбор и перерисовываем всё (введённый текст в полях сохраняется)
+  document.addEventListener('change', e => {
+    if (e.target.id !== 'lang') return;
+    I18N.set(e.target.value);
+    render();
+    if (meMarker) meMarker.setTooltipContent(t('you_are_here'));
+  });
   document.addEventListener('input', e => {
     if (e.target.id !== 'search') return;
     state.query = e.target.value;
@@ -1008,7 +1030,7 @@
   });
   window.addEventListener('appinstalled', () => {
     state.installPrompt = null;
-    toast('Tankovka установлена — ищите иконку на главном экране 🍺');
+    toast(t('installed_toast'));
     render();
   });
   // офлайн-копия интерфейса: сначала сеть, без сети — последняя сохранённая версия

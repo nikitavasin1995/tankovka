@@ -22,8 +22,12 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🍺 Tankovka <small>только танковое</small></div>
-    <div id="chip"></div>
+    <div class="brand">🍺 Tankovka <small id="tagline">только танковое</small></div>
+    <div class="top-right">
+      <div id="chip"></div>
+      <!-- выбор языка: видна короткая подпись, по нажатию открывается список языков -->
+      <label class="lang"><span aria-hidden="true">🌐</span><span id="langCode">RU</span><select id="lang"></select></label>
+    </div>
   </header>
 
   <main class="layout">
@@ -48,6 +52,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <script src="data/pubs.js"></script>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

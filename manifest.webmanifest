@@ -1,8 +1,8 @@
 {
-  "name": "Tankovka — танковое пиво на карте Чехии",
+  "name": "Tankovka",
   "short_name": "Tankovka",
-  "description": "Пивные с танковым пивом в Чехии и друзья, которые пьют рядом",
-  "lang": "ru",
+  "description": "Pubs with tank beer in Czechia and friends drinking nearby",
+  "lang": "en",
   "id": "./",
   "start_url": "./",
   "scope": "./",
