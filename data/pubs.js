@@ -350,5 +350,621 @@ window.PUBS = [
       "url": "https://www.firmy.cz/tag/pivo-z-tanku",
       "type": "public"
     }
+  },
+  {
+    "id": "seed-27",
+    "name": "Potrefená husa Platnéřská",
+    "address": "Platnéřská 88/9, Praha 1",
+    "city": "Praha",
+    "brand": "Staropramen",
+    "lat": 50.087296,
+    "lng": 14.41572,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-28",
+    "name": "Restaurace Klamovka",
+    "address": "Klamovka 2051, Praha 5",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.071516,
+    "lng": 14.379246,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-29",
+    "name": "Restaurace Nad Alejí",
+    "address": "Brunclíkova 1875/17, Praha 6",
+    "city": "Praha",
+    "brand": "Staropramen",
+    "lat": 50.086138,
+    "lng": 14.345015,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-30",
+    "name": "La Republica",
+    "address": "Na Poříčí 1041/12, Praha 1",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.08918,
+    "lng": 14.431197,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-31",
+    "name": "Restaurant Na Květnici",
+    "address": "Na Květnici 700/1a, Praha 4",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.061011,
+    "lng": 14.439325,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-32",
+    "name": "Zlatý Klas",
+    "address": "Plzeňská 609/9, Praha 5",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.071578,
+    "lng": 14.400453,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-33",
+    "name": "U Bílého Lva",
+    "address": "Na Bělidle 310/30, Praha 5",
+    "city": "Praha",
+    "brand": "Staropramen",
+    "lat": 50.071845,
+    "lng": 14.406247,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-34",
+    "name": "Radegastovna Perón",
+    "address": "Stroupežnického 525/20, Praha 5",
+    "city": "Praha",
+    "brand": "Radegast",
+    "lat": 50.070718,
+    "lng": 14.403114,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-35",
+    "name": "Restaurace Pod Černým vrchem",
+    "address": "Mahenova 282/5, Praha 5",
+    "city": "Praha",
+    "brand": "Staropramen",
+    "lat": 50.071284,
+    "lng": 14.387199,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-36",
+    "name": "Restaurace Ladronka",
+    "address": "Plzeňská 2575/208, Praha 5",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.070102,
+    "lng": 14.368203,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-37",
+    "name": "Pivnice U Jeníčka",
+    "address": "Hostivařská 597/22, Praha 10",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.052101,
+    "lng": 14.528497,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-38",
+    "name": "Restaurace U Mlynáře",
+    "address": "Nerudova 213/18, Praha 1",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.088671,
+    "lng": 14.400826,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-39",
+    "name": "Švejk Restaurant U Brázdů",
+    "address": "U Svobodárny 1511/18, Praha 9",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.106541,
+    "lng": 14.488681,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-40",
+    "name": "Meat Beer",
+    "address": "Washingtonova 1568/23, Praha 1",
+    "city": "Praha",
+    "brand": "Březňák",
+    "lat": 50.082279,
+    "lng": 14.432289,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-41",
+    "name": "Vyšehradský Restaurant Kandelábr",
+    "address": "Štětkova 1638/18, Praha 4",
+    "city": "Praha",
+    "brand": null,
+    "lat": 50.059943,
+    "lng": 14.430172,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-42",
+    "name": "Restaurace Waldeska",
+    "address": "Moskevská 860/80, Praha 10",
+    "city": "Praha",
+    "brand": "Pilsner Urquell, Gambrinus, Kozel",
+    "lat": 50.067396,
+    "lng": 14.459949,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-43",
+    "name": "Lokál Nad Stromovkou",
+    "address": "Nad Královskou oborou 31, Praha 7",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.103078,
+    "lng": 14.418379,
+    "source": {
+      "name": "Prague.eu",
+      "url": "https://prague.eu/en/objevujte/lokal-nad-stromovkou/",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-44",
+    "name": "Červený jelen",
+    "address": "Hybernská 1034/5, Praha 1",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.087316,
+    "lng": 14.430846,
+    "source": {
+      "name": "Forbes.cz",
+      "url": "https://forbes.cz/cerveny-jelen-prichazi-a-plzen-cepuje-z-nejvetsiho-pivniho-tanku-na-svete/",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-45",
+    "name": "U Medvídků",
+    "address": "Na Perštýně 345/7, Praha 1",
+    "city": "Praha",
+    "brand": "Budweiser Budvar",
+    "lat": 50.082857,
+    "lng": 14.418791,
+    "source": {
+      "name": "Expats.cz",
+      "url": "https://expats.cz/czech-news/article/tank-beer-in-prague",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-46",
+    "name": "U Hajcmana",
+    "address": "Horní 288/67, Ostrava-Dubina",
+    "city": "Ostrava",
+    "brand": "Radegast",
+    "lat": 49.77913,
+    "lng": 18.252882,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-47",
+    "name": "Radegastovna Maston",
+    "address": "Jiřího Herolda 1580/3, Ostrava",
+    "city": "Ostrava",
+    "brand": "Radegast",
+    "lat": 49.782462,
+    "lng": 18.253769,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-48",
+    "name": "Pivnice Srub",
+    "address": "Aloise Gavlase 262/14a, Ostrava-Dubina",
+    "city": "Ostrava",
+    "brand": "Radegast",
+    "lat": 49.776973,
+    "lng": 18.254242,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-49",
+    "name": "Restaurace Tankovna Ostravar",
+    "address": "Střelniční 6/2, Moravská Ostrava",
+    "city": "Ostrava",
+    "brand": "Ostravar",
+    "lat": 49.835336,
+    "lng": 18.293702,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-50",
+    "name": "Pivnice Racek",
+    "address": "Předškolní 671/2, Ostrava-Výškovice",
+    "city": "Ostrava",
+    "brand": "Ostravar, Radegast",
+    "lat": 49.781323,
+    "lng": 18.222668,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-51",
+    "name": "Hostinec Na Hůrce",
+    "address": "Výškovická 243/139, Ostrava-Výškovice",
+    "city": "Ostrava",
+    "brand": null,
+    "lat": 49.781025,
+    "lng": 18.224023,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-52",
+    "name": "Restaurace Alvi",
+    "address": "Nádražní 955/106, Moravská Ostrava",
+    "city": "Ostrava",
+    "brand": null,
+    "lat": 49.845656,
+    "lng": 18.280725,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-53",
+    "name": "Kovárna Na Terase",
+    "address": "Dlouhá třída 1612/95c, Havířov",
+    "city": "Havířov",
+    "brand": "Pilsner Urquell",
+    "lat": 49.776269,
+    "lng": 18.453441,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-54",
+    "name": "Kozlovna U Františka",
+    "address": "nám. F. Křižíka 1483/5, Tábor",
+    "city": "Tábor",
+    "brand": "Velkopopovický Kozel",
+    "lat": 49.41291,
+    "lng": 14.663935,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-55",
+    "name": "Restaurace Panský dům",
+    "address": "nám. T. G. Masaryka 320, Chotěboř",
+    "city": "Chotěboř",
+    "brand": "Pilsner Urquell",
+    "lat": 49.719925,
+    "lng": 15.670972,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-56",
+    "name": "Pivnice U Dolečka",
+    "address": "J. E. Purkyně 493, Uherské Hradiště",
+    "city": "Uherské Hradiště",
+    "brand": null,
+    "lat": 49.06531,
+    "lng": 17.455448,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-57",
+    "name": "Pivnice Krček",
+    "address": "Stonky 561, Uherské Hradiště",
+    "city": "Uherské Hradiště",
+    "brand": null,
+    "lat": 49.066312,
+    "lng": 17.470299,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-58",
+    "name": "Radegastovna Cheb",
+    "address": "Valdštejnova 1513/70, Cheb",
+    "city": "Cheb",
+    "brand": "Radegast",
+    "lat": 50.070604,
+    "lng": 12.372793,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-59",
+    "name": "Pivnice U Kovárny",
+    "address": "U Kovárny 909, Olomouc",
+    "city": "Olomouc",
+    "brand": "Šerák",
+    "lat": 49.59555,
+    "lng": 17.227983,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-60",
+    "name": "Městský pivovar Domažlice",
+    "address": "Pivovarská 10, Domažlice",
+    "city": "Domažlice",
+    "brand": "Domažlická",
+    "lat": 49.441769,
+    "lng": 12.926824,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-61",
+    "name": "Restaurace Na Závisti",
+    "address": "Palackého 125, Veltrusy",
+    "city": "Veltrusy",
+    "brand": "Gambrinus",
+    "lat": 50.270056,
+    "lng": 14.328709,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-62",
+    "name": "Polabinská Tankovna",
+    "address": "kpt. Bartoše 454, Pardubice",
+    "city": "Pardubice",
+    "brand": "Budweiser Budvar",
+    "lat": 50.044188,
+    "lng": 15.752552,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-63",
+    "name": "Tatáž Pakáž",
+    "address": "Železná 249/12, Liberec",
+    "city": "Liberec",
+    "brand": "Pilsner Urquell",
+    "lat": 50.770107,
+    "lng": 15.056778,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-64",
+    "name": "Pivovarská restaurace Belveder",
+    "address": "Pivovar 168, Protivín",
+    "city": "Protivín",
+    "brand": "Platan",
+    "lat": 49.204604,
+    "lng": 14.217665,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-65",
+    "name": "Srdcovka Ústí",
+    "address": "Velká Hradební 3122/52, Ústí nad Labem",
+    "city": "Ústí nad Labem",
+    "brand": null,
+    "lat": 50.661539,
+    "lng": 14.039753,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-66",
+    "name": "Restaurace Pod Ledem",
+    "address": "Ringhofferova 336, Velké Popovice",
+    "city": "Velké Popovice",
+    "brand": "Pilsner Urquell",
+    "lat": 49.925685,
+    "lng": 14.636346,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-67",
+    "name": "Panský pivovar Holešov",
+    "address": "Masarykova 655/19, Holešov",
+    "city": "Holešov",
+    "brand": null,
+    "lat": 49.331375,
+    "lng": 17.582844,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-68",
+    "name": "Nádražní pivnice Zámecká",
+    "address": "Litoměřická 1001/15, Teplice",
+    "city": "Teplice",
+    "brand": "Zlatopramen",
+    "lat": 50.633957,
+    "lng": 13.813786,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-69",
+    "name": "Pivnice Na Štokách",
+    "address": "Jihlavská 1820, Humpolec",
+    "city": "Humpolec",
+    "brand": "Bernard",
+    "lat": 49.539688,
+    "lng": 15.359975,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-70",
+    "name": "Sport bar Zero",
+    "address": "Tř. 1. máje 1783, Hranice",
+    "city": "Hranice",
+    "brand": "Radegast",
+    "lat": 49.554526,
+    "lng": 17.735964,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
   }
 ];
