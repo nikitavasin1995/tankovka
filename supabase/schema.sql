@@ -75,10 +75,20 @@ create table if not exists public.drinks (
   id         uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions (id) on delete cascade,
   user_id    uuid not null references public.profiles (id) on delete cascade,
-  size       numeric(3, 2) not null check (size in (0.3, 0.5)),
-  created_at timestamptz not null default now()
+  kind       text not null default 'beer',
+  size       numeric(3, 2) not null,
+  created_at timestamptz not null default clock_timestamp()
 );
 create index if not exists drinks_session on public.drinks (session_id);
+
+-- напитки: пиво 0,3 / 0,5 л и крепкое стопками 20 / 40 мл
+-- (стопки добавлены позже — эти строки обновляют уже созданную таблицу)
+alter table public.drinks add column if not exists kind text not null default 'beer';
+alter table public.drinks alter column created_at set default clock_timestamp();
+alter table public.drinks drop constraint if exists drinks_size_check;
+alter table public.drinks drop constraint if exists drinks_kind_size;
+alter table public.drinks add constraint drinks_kind_size check (
+  (kind = 'beer' and size in (0.3, 0.5)) or (kind = 'shot' and size in (0.02, 0.04)));
 
 -- ---------- помощники для правил доступа ----------
 create or replace function public.is_friend(other uuid) returns boolean
@@ -208,7 +218,9 @@ begin
   return sid;
 end $$;
 
-create or replace function public.add_drink(p_size numeric) returns integer
+-- p_kind: 'beer' (0,3 или 0,5 л) или 'shot' — стопка крепкого (0,02 или 0,04 л)
+drop function if exists public.add_drink(numeric);  -- старая версия без p_kind
+create or replace function public.add_drink(p_size numeric, p_kind text default 'beer') returns integer
 language plpgsql security definer set search_path = '' as $$
 declare
   me  uuid := auth.uid();
@@ -216,13 +228,15 @@ declare
   n   integer;
 begin
   if me is null then raise exception 'not_authenticated'; end if;
-  if p_size not in (0.3, 0.5) then raise exception 'bad_size'; end if;
+  if not ((p_kind = 'beer' and p_size in (0.3, 0.5)) or (p_kind = 'shot' and p_size in (0.02, 0.04))) then
+    raise exception 'bad_size';
+  end if;
   select id into sid from public.sessions
   where user_id = me and ended_at is null and started_at > now() - interval '8 hours';
   if sid is null then raise exception 'no_active_session'; end if;
   select count(*) into n from public.drinks where session_id = sid;
-  if n >= 40 then raise exception 'too_many'; end if;
-  insert into public.drinks (session_id, user_id, size) values (sid, me, p_size);
+  if n >= 60 then raise exception 'too_many'; end if;
+  insert into public.drinks (session_id, user_id, kind, size) values (sid, me, p_kind, p_size);
   return n + 1;
 end $$;
 
@@ -265,8 +279,9 @@ end $$;
 create or replace function public.my_stats() returns json
 language sql stable security definer set search_path = '' as $$
   select json_build_object(
-    'beers',  count(d.id),
-    'liters', coalesce(sum(d.size), 0),
+    'beers',  count(d.id) filter (where d.kind = 'beer'),
+    'liters', coalesce(sum(d.size) filter (where d.kind = 'beer'), 0),
+    'shots',  count(d.id) filter (where d.kind = 'shot'),
     'pubs',   count(distinct s.pub_id) filter (where d.id is not null))
   from public.sessions s
   left join public.drinks d on d.session_id = s.id
@@ -302,13 +317,14 @@ grant update (name, emoji, visibility) on public.profiles to authenticated;
 grant select, insert, update, delete on public.pub_votes to authenticated;
 
 revoke execute on function public.end_session_internal(uuid) from public, anon, authenticated;
-revoke execute on function public.check_in(text), public.end_session(), public.add_drink(numeric),
+revoke execute on function public.check_in(text), public.end_session(), public.add_drink(numeric, text),
   public.undo_drink(), public.add_friend(text), public.remove_friend(uuid), public.my_stats(),
   public.delete_me(), public.is_friend(uuid), public.shares_with_me(uuid) from public, anon;
-grant execute on function public.check_in(text), public.end_session(), public.add_drink(numeric),
+grant execute on function public.check_in(text), public.end_session(), public.add_drink(numeric, text),
   public.undo_drink(), public.add_friend(text), public.remove_friend(uuid), public.my_stats(),
   public.delete_me(), public.is_friend(uuid), public.shares_with_me(uuid) to authenticated;
 grant execute on function public.pub_vote_counts() to anon, authenticated;
+
 
 -- ---------- стартовые пивные с танковым пивом (из открытых источников, ноябрь 2026) ----------
 insert into public.pubs (id, name, address, city, brand, lat, lng, source_type, source_name, source_url) values
@@ -336,5 +352,49 @@ insert into public.pubs (id, name, address, city, brand, lat, lng, source_type, 
   ('seed-23', 'Pivovar Svijany', 'Svijany 25', 'Svijany', 'Svijany', 50.572945, 15.054295, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/tag/pivo-z-tanku'),
   ('seed-24', 'Pivovar Falkenštejn', 'Křinické nám. 7/12, Krásná Lípa', 'Krásná Lípa', 'Falkenštejn', 50.913942, 14.507621, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/tag/pivo-z-tanku'),
   ('seed-25', 'Pivovar Pod Lípou', 'Náves 20, Kyšice', 'Kyšice', null, 49.753753, 13.484587, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/tag/pivo-z-tanku'),
-  ('seed-26', 'Maple restaurant', 'Jiráskova 533, Heřmanův Městec', 'Heřmanův Městec', null, 49.949785, 15.665964, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/tag/pivo-z-tanku')
+  ('seed-26', 'Maple restaurant', 'Jiráskova 533, Heřmanův Městec', 'Heřmanův Městec', null, 49.949785, 15.665964, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/tag/pivo-z-tanku'),
+  ('seed-27', 'Potrefená husa Platnéřská', 'Platnéřská 88/9, Praha 1', 'Praha', 'Staropramen', 50.087296, 14.41572, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-28', 'Restaurace Klamovka', 'Klamovka 2051, Praha 5', 'Praha', null, 50.071516, 14.379246, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-29', 'Restaurace Nad Alejí', 'Brunclíkova 1875/17, Praha 6', 'Praha', 'Staropramen', 50.086138, 14.345015, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-30', 'La Republica', 'Na Poříčí 1041/12, Praha 1', 'Praha', 'Pilsner Urquell', 50.08918, 14.431197, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-31', 'Restaurant Na Květnici', 'Na Květnici 700/1a, Praha 4', 'Praha', null, 50.061011, 14.439325, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-32', 'Zlatý Klas', 'Plzeňská 609/9, Praha 5', 'Praha', null, 50.071578, 14.400453, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-33', 'U Bílého Lva', 'Na Bělidle 310/30, Praha 5', 'Praha', 'Staropramen', 50.071845, 14.406247, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-34', 'Radegastovna Perón', 'Stroupežnického 525/20, Praha 5', 'Praha', 'Radegast', 50.070718, 14.403114, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-35', 'Restaurace Pod Černým vrchem', 'Mahenova 282/5, Praha 5', 'Praha', 'Staropramen', 50.071284, 14.387199, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-36', 'Restaurace Ladronka', 'Plzeňská 2575/208, Praha 5', 'Praha', null, 50.070102, 14.368203, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-37', 'Pivnice U Jeníčka', 'Hostivařská 597/22, Praha 10', 'Praha', null, 50.052101, 14.528497, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-38', 'Restaurace U Mlynáře', 'Nerudova 213/18, Praha 1', 'Praha', null, 50.088671, 14.400826, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-39', 'Švejk Restaurant U Brázdů', 'U Svobodárny 1511/18, Praha 9', 'Praha', 'Pilsner Urquell', 50.106541, 14.488681, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-40', 'Meat Beer', 'Washingtonova 1568/23, Praha 1', 'Praha', 'Březňák', 50.082279, 14.432289, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-41', 'Vyšehradský Restaurant Kandelábr', 'Štětkova 1638/18, Praha 4', 'Praha', null, 50.059943, 14.430172, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-42', 'Restaurace Waldeska', 'Moskevská 860/80, Praha 10', 'Praha', 'Pilsner Urquell, Gambrinus, Kozel', 50.067396, 14.459949, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-43', 'Lokál Nad Stromovkou', 'Nad Královskou oborou 31, Praha 7', 'Praha', 'Pilsner Urquell', 50.103078, 14.418379, 'public', 'Prague.eu', 'https://prague.eu/en/objevujte/lokal-nad-stromovkou/'),
+  ('seed-44', 'Červený jelen', 'Hybernská 1034/5, Praha 1', 'Praha', 'Pilsner Urquell', 50.087316, 14.430846, 'public', 'Forbes.cz', 'https://forbes.cz/cerveny-jelen-prichazi-a-plzen-cepuje-z-nejvetsiho-pivniho-tanku-na-svete/'),
+  ('seed-45', 'U Medvídků', 'Na Perštýně 345/7, Praha 1', 'Praha', 'Budweiser Budvar', 50.082857, 14.418791, 'public', 'Expats.cz', 'https://expats.cz/czech-news/article/tank-beer-in-prague'),
+  ('seed-46', 'U Hajcmana', 'Horní 288/67, Ostrava-Dubina', 'Ostrava', 'Radegast', 49.77913, 18.252882, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-47', 'Radegastovna Maston', 'Jiřího Herolda 1580/3, Ostrava', 'Ostrava', 'Radegast', 49.782462, 18.253769, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-48', 'Pivnice Srub', 'Aloise Gavlase 262/14a, Ostrava-Dubina', 'Ostrava', 'Radegast', 49.776973, 18.254242, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-49', 'Restaurace Tankovna Ostravar', 'Střelniční 6/2, Moravská Ostrava', 'Ostrava', 'Ostravar', 49.835336, 18.293702, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-50', 'Pivnice Racek', 'Předškolní 671/2, Ostrava-Výškovice', 'Ostrava', 'Ostravar, Radegast', 49.781323, 18.222668, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-51', 'Hostinec Na Hůrce', 'Výškovická 243/139, Ostrava-Výškovice', 'Ostrava', null, 49.781025, 18.224023, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-52', 'Restaurace Alvi', 'Nádražní 955/106, Moravská Ostrava', 'Ostrava', null, 49.845656, 18.280725, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-53', 'Kovárna Na Terase', 'Dlouhá třída 1612/95c, Havířov', 'Havířov', 'Pilsner Urquell', 49.776269, 18.453441, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-54', 'Kozlovna U Františka', 'nám. F. Křižíka 1483/5, Tábor', 'Tábor', 'Velkopopovický Kozel', 49.41291, 14.663935, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-55', 'Restaurace Panský dům', 'nám. T. G. Masaryka 320, Chotěboř', 'Chotěboř', 'Pilsner Urquell', 49.719925, 15.670972, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-56', 'Pivnice U Dolečka', 'J. E. Purkyně 493, Uherské Hradiště', 'Uherské Hradiště', null, 49.06531, 17.455448, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-57', 'Pivnice Krček', 'Stonky 561, Uherské Hradiště', 'Uherské Hradiště', null, 49.066312, 17.470299, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-58', 'Radegastovna Cheb', 'Valdštejnova 1513/70, Cheb', 'Cheb', 'Radegast', 50.070604, 12.372793, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-59', 'Pivnice U Kovárny', 'U Kovárny 909, Olomouc', 'Olomouc', 'Šerák', 49.59555, 17.227983, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-60', 'Městský pivovar Domažlice', 'Pivovarská 10, Domažlice', 'Domažlice', 'Domažlická', 49.441769, 12.926824, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-61', 'Restaurace Na Závisti', 'Palackého 125, Veltrusy', 'Veltrusy', 'Gambrinus', 50.270056, 14.328709, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-62', 'Polabinská Tankovna', 'kpt. Bartoše 454, Pardubice', 'Pardubice', 'Budweiser Budvar', 50.044188, 15.752552, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-63', 'Tatáž Pakáž', 'Železná 249/12, Liberec', 'Liberec', 'Pilsner Urquell', 50.770107, 15.056778, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-64', 'Pivovarská restaurace Belveder', 'Pivovar 168, Protivín', 'Protivín', 'Platan', 49.204604, 14.217665, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-65', 'Srdcovka Ústí', 'Velká Hradební 3122/52, Ústí nad Labem', 'Ústí nad Labem', null, 50.661539, 14.039753, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-66', 'Restaurace Pod Ledem', 'Ringhofferova 336, Velké Popovice', 'Velké Popovice', 'Pilsner Urquell', 49.925685, 14.636346, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-67', 'Panský pivovar Holešov', 'Masarykova 655/19, Holešov', 'Holešov', null, 49.331375, 17.582844, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-68', 'Nádražní pivnice Zámecká', 'Litoměřická 1001/15, Teplice', 'Teplice', 'Zlatopramen', 50.633957, 13.813786, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-69', 'Pivnice Na Štokách', 'Jihlavská 1820, Humpolec', 'Humpolec', 'Bernard', 49.539688, 15.359975, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-70', 'Sport bar Zero', 'Tř. 1. máje 1783, Hranice', 'Hranice', 'Radegast', 49.554526, 17.735964, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku')
 on conflict (id) do nothing;
