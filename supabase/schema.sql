@@ -25,7 +25,7 @@ create table if not exists public.profiles (
   id          uuid primary key references auth.users (id) on delete cascade,
   name        text not null check (char_length(name) between 1 and 24),
   emoji       text not null default '🍺' check (char_length(emoji) between 1 and 8),
-  visibility  text not null default 'friends' check (visibility in ('friends', 'nobody')),
+  visibility  text not null default 'friends',
   friend_code text not null unique default public.gen_friend_code(),
   created_at  timestamptz not null default now()
 );
@@ -104,7 +104,7 @@ language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from public.friendships f
     join public.profiles p on p.id = f.friend_id
-    where f.user_id = auth.uid() and f.friend_id = owner and p.visibility = 'friends');
+    where f.user_id = auth.uid() and f.friend_id = owner and p.visibility in ('friends', 'everyone'));
 $$;
 
 -- ---------- правила доступа (RLS) ----------
@@ -324,6 +324,67 @@ grant execute on function public.check_in(text), public.end_session(), public.ad
   public.undo_drink(), public.add_friend(text), public.remove_friend(uuid), public.my_stats(),
   public.delete_me(), public.is_friend(uuid), public.shares_with_me(uuid) to authenticated;
 grant execute on function public.pub_vote_counts() to anon, authenticated;
+
+-- =====================================================================
+-- Видимость «все» и события/акции в пивных (добавлено в ноябре 2026)
+-- =====================================================================
+
+-- кто видит отметку: friends — друзья, everyone — все пользователи, nobody — никто
+alter table public.profiles drop constraint if exists profiles_visibility_check;
+alter table public.profiles add constraint profiles_visibility_check
+  check (visibility in ('friends', 'everyone', 'nobody'));
+
+-- Отметки людей, которые показывают себя всем. Отдаём только имя, аватар, пивную,
+-- время и выпитое — без email, кода друга и прочего. Только для вошедших.
+create or replace function public.public_live()
+returns table (user_id uuid, name text, emoji text, pub_id text, started_at timestamptz, drinks json)
+language sql stable security definer set search_path = '' as $$
+  select s.user_id, p.name, p.emoji, s.pub_id, s.started_at,
+         coalesce((select json_agg(json_build_object('size', d.size, 'kind', d.kind, 'created_at', d.created_at)
+                                   order by d.created_at)
+                   from public.drinks d where d.session_id = s.id), '[]'::json)
+  from public.sessions s
+  join public.profiles p on p.id = s.user_id
+  where auth.uid() is not null
+    and p.visibility = 'everyone'
+    and s.user_id <> auth.uid()
+    and s.ended_at is null
+    and s.started_at > now() - interval '8 hours';
+$$;
+revoke execute on function public.public_live() from public, anon;
+grant execute on function public.public_live() to authenticated;
+
+-- события и акции: добавляют пользователи, видят все (в том числе без входа)
+create table if not exists public.events (
+  id         uuid primary key default gen_random_uuid(),
+  pub_id     text not null references public.pubs (id) on delete cascade,
+  kind       text not null default 'event' check (kind in ('event', 'promo')),
+  title      text not null check (char_length(title) between 2 and 80),
+  details    text check (char_length(details) <= 300),
+  starts_at  timestamptz not null,
+  ends_at    timestamptz not null,
+  created_by uuid references public.profiles (id) on delete set null default auth.uid(),
+  created_at timestamptz not null default now(),
+  check (ends_at > starts_at and ends_at <= starts_at + interval '31 days')
+);
+create index if not exists events_pub on public.events (pub_id);
+create index if not exists events_ends on public.events (ends_at);
+alter table public.events enable row level security;
+
+drop policy if exists "events: everyone reads" on public.events;
+create policy "events: everyone reads" on public.events for select to anon, authenticated
+  using (true);
+drop policy if exists "events: users add" on public.events;
+create policy "events: users add" on public.events for insert to authenticated
+  with check (created_by = (select auth.uid()) and ends_at > now() and starts_at < now() + interval '180 days');
+drop policy if exists "events: author removes" on public.events;
+create policy "events: author removes" on public.events for delete to authenticated
+  using (created_by = (select auth.uid()));
+
+revoke all on public.events from anon, authenticated;
+grant select on public.events to anon, authenticated;
+grant insert (pub_id, kind, title, details, starts_at, ends_at) on public.events to authenticated;
+grant delete on public.events to authenticated;
 
 
 
