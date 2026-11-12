@@ -966,5 +966,103 @@ window.PUBS = [
       "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
       "type": "public"
     }
+  },
+  {
+    "id": "seed-71",
+    "name": "Vinohradský Parlament",
+    "address": "Korunní 1, Praha 2",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.075421,
+    "lng": 14.438069,
+    "source": {
+      "name": "Prague.eu",
+      "url": "https://prague.eu/cs/objevujte/restaurace-vinohradsky-parlament/",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-72",
+    "name": "Spravovna",
+    "address": "Ondříčkova 1, Praha 3",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.07914,
+    "lng": 14.448416,
+    "source": {
+      "name": "Prague.eu",
+      "url": "https://prague.eu/cs/objevujte/spravovna/",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-73",
+    "name": "Plzeňka Olše",
+    "address": "Táboritská 17/26, Praha 3",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.082262,
+    "lng": 14.458099,
+    "source": {
+      "name": "MediaGuru",
+      "url": "https://www.mediaguru.cz/pilsner-urquell-ma-novou-konceptovou-hospodu-plzenku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-74",
+    "name": "Restaurace Kulaťák",
+    "address": "Vítězné náměstí 12, Praha 6",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.100485,
+    "lng": 14.397144,
+    "source": {
+      "name": "Prague.eu",
+      "url": "https://prague.eu/cs/objevujte/restaurace-kulatak/",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-75",
+    "name": "Na Kopečku",
+    "address": "Pelhřimovská 1021/1, Praha 4",
+    "city": "Praha",
+    "brand": "Pilsner Urquell",
+    "lat": 50.043131,
+    "lng": 14.454119,
+    "source": {
+      "name": "firmy.cz — pivo z tanku",
+      "url": "https://www.firmy.cz/stitek/pivo-z-tanku",
+      "type": "public"
+    }
+  },
+  {
+    "id": "seed-76",
+    "name": "Automat Matuška",
+    "address": "Dejvická 4, Praha 6",
+    "city": "Praha",
+    "brand": "Matuška",
+    "lat": 50.098045,
+    "lng": 14.404276,
+    "source": {
+      "name": null,
+      "url": null,
+      "type": "user"
+    }
+  },
+  {
+    "id": "seed-77",
+    "name": "Automat Matuška II",
+    "address": "nám. Jiřího z Poděbrad 16, Praha 3",
+    "city": "Praha",
+    "brand": "Matuška",
+    "lat": 50.078161,
+    "lng": 14.452137,
+    "source": {
+      "name": null,
+      "url": null,
+      "type": "user"
+    }
   }
 ];
