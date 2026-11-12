@@ -23,6 +23,18 @@
   // Старые аватары у пользователей сохраняются, пока они сами их не сменят.
   const AVATARS = ['🍺', '🍻', '🥃', '🍷', '🥂', '🍾', '🍸', '🍹', '🍶'];
   const PENDING_FRIEND_KEY = 'tk.pendingFriend';
+  const ADULT_KEY = 'tk.adult';               // «мне есть 18» — спрашиваем один раз при первом запуске
+  const SITE = 'https://natankovano.cz/';     // адрес сайта: ссылки-приглашения и правила
+  // грубые слова — тот же список, что в supabase/schema.sql (is_offensive); сервер проверяет сам,
+  // здесь — чтобы сразу подсказать, не дожидаясь ответа
+  const OFFENSIVE = /fuck|cunt|nigg|faggot|kurva|kurvo|kurvy|píč|pič[aiou]|kokot|čurák|curak|zmrd|mrdat|mrdk|šukat|buzerant|hurensohn|wichser|fotze|arschloch|pizd|mudak|blyat|blyad|bljad|хуй|хуе|хуё|хуя|пизд|ебат|ебал|ебан|ёбан|еблан|бляд|блят|мудак|мудил|пидор|пидар|підар|залуп/;
+  const isOffensive = (...texts) => OFFENSIVE.test(texts.join(' ').toLowerCase());
+
+  // ---------- приложение для iPhone (Capacitor) ----------
+  // в App Store-версии сайт лежит внутри приложения, а GPS, вибрация и «Поделиться» — родные iOS
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const plugin = name => (NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins[name]) || null;
+  const buzz = () => { const h = plugin('Haptics'); if (h) h.impact({ style: 'MEDIUM' }).catch(() => {}); };
 
   // ---------- состояние ----------
   const state = {
@@ -57,6 +69,11 @@
     onlyEvents: false,   // фильтр «только с событиями»
     eventForm: null,     // id пивной, для которой открыта форма нового события
     evKind: 'event',
+    personMenu: null,    // у какого человека открыто меню «Пожаловаться / Заблокировать»
+    reported: new Set(), // на что я уже пожаловался ('event:<id>', 'user:<id>', 'pub:<id>') — скрываем
+    blocks: [],          // кого я заблокировал: { id, name, emoji }
+    adult: localStorage.getItem(ADULT_KEY) === '1',
+    underage: false,
   };
 
   // приглашение в друзья по ссылке ?friend=КОД
@@ -135,6 +152,7 @@
     bad_size: 'err_bad_size',
     pub_not_found: 'err_pub_not_found',
     not_authenticated: 'err_not_auth',
+    offensive_text: 'err_offensive',
   };
   function errText(e) {
     const m = (e && (e.message || e.error_description)) || String(e);
@@ -172,11 +190,13 @@
     drinks: (r.drinks || []).map(d => ({ kind: d.kind || 'beer', size: Number(d.size), at: Date.parse(d.created_at) })).sort((a, b) => a.at - b.at),
   });
 
+  const isBlocked = id => state.blocks.some(b => b.id === id);
+
   // кто сейчас в пивных: я, друзья и те, кто показывает себя всем
   function drinkers() {
     return state.live.concat(state.publicLive || []).map(s => {
       const person = s.person || personById(s.userId);
-      if (!person || !pubById(s.pubId)) return null;
+      if (!person || !pubById(s.pubId) || isBlocked(s.userId)) return null;
       return { id: s.userId, isMe: s.userId === me(), isPublic: !!s.person, name: person.name, emoji: person.emoji, pubId: s.pubId, since: s.startedAt, drinks: s.drinks };
     }).filter(Boolean);
   }
@@ -211,10 +231,20 @@
       .gt('ends_at', new Date().toISOString())
       .lt('starts_at', new Date(Date.now() + EVENTS_AHEAD_MS).toISOString())
       .order('starts_at').limit(500));
-    state.events = rows.map(r => ({
+    state.events = rows.filter(r => !state.reported.has('event:' + r.id)).map(r => ({
       id: r.id, pubId: r.pub_id, kind: r.kind, title: r.title, details: r.details || '',
       start: Date.parse(r.starts_at), end: Date.parse(r.ends_at), mine: !!me() && r.created_by === me(),
     }));
+  }
+
+  // мои жалобы (то, на что пожаловался, больше не показываем) и мой список заблокированных
+  async function loadSafety() {
+    const [reps, blocks] = await Promise.all([
+      call(sb.from('reports').select('target_type,target_id')),
+      call(sb.from('blocks').select('blocked,blocked_name,blocked_emoji,created_at').order('created_at', { ascending: false })),
+    ]);
+    state.reported = new Set(reps.map(r => r.target_type + ':' + r.target_id));
+    state.blocks = blocks.map(b => ({ id: b.blocked, name: b.blocked_name || '?', emoji: b.blocked_emoji || '🍺' }));
   }
 
   async function loadPubs() {
@@ -267,12 +297,13 @@
 
   async function setUser(user) {
     state.user = user;
-    Object.assign(state, { profile: null, friends: [], live: [], publicLive: [], history: [], stats: null, myVotes: {}, armed: null, eventForm: null });
+    Object.assign(state, { profile: null, friends: [], live: [], publicLive: [], history: [], stats: null, myVotes: {}, armed: null, eventForm: null,
+      personMenu: null, reported: new Set(), blocks: [] });
     if (!user) { state.loading = false; render(); return; }
     state.loading = true;
     render();
     try {
-      await loadPeople();
+      await Promise.all([loadPeople(), loadSafety().catch(() => {})]);
       await Promise.all([loadLive(), loadMine(), loadEvents().catch(() => {})]);
     } catch (e) {
       toast(errText(e));
@@ -332,6 +363,7 @@
     if (!s) return toast(t('err_no_session'));
     const drink = { kind, size, at: Date.now() };
     s.drinks.push(drink);                      // сразу показываем, потом сохраняем
+    buzz();
     render();
     toast(`${kind === 'shot' ? '🥃' : '🍺'} ${tally(s.drinks)}`);
     try {
@@ -413,8 +445,14 @@
   }
 
   async function shareInvite() {
-    const url = `${location.origin}${location.pathname}?friend=${state.profile.friend_code}`;
+    // в приложении адрес страницы внутренний (capacitor://), поэтому ссылка всегда на сайт
+    const url = `${NATIVE ? SITE : location.origin + location.pathname}?friend=${state.profile.friend_code}`;
     const text = t('invite_text');
+    const share = plugin('Share');
+    if (share) {
+      try { await share.share({ title: 'Natankováno', text, url, dialogTitle: t('invite_link_btn') }); } catch (e) { /* отменили */ }
+      return;
+    }
     if (navigator.share) {
       try { await navigator.share({ title: 'Natankováno', text, url }); return; } catch (e) { /* отменили — копируем */ }
     }
@@ -656,9 +694,11 @@
   // отметиться в ближайшей пивной; друзья/все видят пивную, а не точку на карте.
   function locate(opts) {
     opts = opts || {};
-    if (!navigator.geolocation) { if (!opts.silent) toast(t('geo_unsupported')); return; }
+    const gps = plugin('Geolocation');           // в iPhone-приложении — родной GPS iOS
+    if (!gps && !navigator.geolocation) { if (!opts.silent) toast(t('geo_unsupported')); return; }
     if (!opts.silent) toast(t('geo_locating'));
-    navigator.geolocation.getCurrentPosition(
+    const getPos = (ok, fail, o) => gps ? gps.getCurrentPosition(o).then(ok, fail) : navigator.geolocation.getCurrentPosition(ok, fail, o);
+    getPos(
       pos => {
         state.myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const near = nearestPub(state.myPos, 100);
@@ -745,7 +785,8 @@
       </div>
       <div class="ev-title">${esc(e.title)}</div>
       ${e.details ? `<div class="muted">${esc(e.details)}</div>` : ''}
-      ${e.mine ? `<button class="btn btn-ghost btn-danger" data-action="event-delete" data-id="${esc(e.id)}">${t(state.armed === 'ev:' + e.id ? 'sure_q' : 'ev_delete')}</button>` : ''}
+      ${e.mine ? `<button class="btn btn-ghost btn-danger" data-action="event-delete" data-id="${esc(e.id)}">${t(state.armed === 'ev:' + e.id ? 'sure_q' : 'ev_delete')}</button>`
+        : `<button class="btn btn-ghost btn-report" data-action="report" data-type="event" data-id="${esc(e.id)}">${t(state.armed === 'rep:event:' + e.id ? 'sure_report' : 'report_btn')}</button>`}
     </li>`;
   }
 
@@ -794,6 +835,17 @@
         <div class="sub">${opts.showPub ? esc(pub.name) + ' · ' : ''}${t('since', { time: fmtTime(d.since) })}</div>
       </div>
       <div class="meta">${drinksMeta(d.drinks)}${opts.dist != null ? `<br>${fmtDist(opts.dist)}` : ''}</div>
+      ${d.isMe ? '' : moreBtn(d.id)}
+    </li>${d.isMe ? '' : personMenu(d.id)}`;
+  }
+
+  // «⋯» у человека → «Пожаловаться» и «Заблокировать» (правило Apple для приложений с людьми)
+  const moreBtn = id => `<button class="btn-more" data-action="person-menu" data-id="${esc(id)}" aria-expanded="${state.personMenu === id}" aria-label="${t('more_actions')}">⋯</button>`;
+  function personMenu(id) {
+    if (state.personMenu !== id) return '';
+    return `<li class="person-menu">
+      <button class="btn btn-ghost btn-report" data-action="report" data-type="user" data-id="${esc(id)}">${t(state.armed === 'rep:user:' + id ? 'sure_report' : 'report_btn')}</button>
+      <button class="btn btn-ghost btn-danger" data-action="block-user" data-id="${esc(id)}">${t(state.armed === 'blk:' + id ? 'sure_block' : 'block_btn')}</button>
     </li>`;
   }
 
@@ -865,6 +917,7 @@
           <button class="btn ${vote === 'yes' ? 'btn-ok' : ''}" data-action="vote" data-v="yes" aria-pressed="${vote === 'yes'}">${t('vote_yes', { n: counts.yes })}</button>
           <button class="btn ${vote === 'no' ? 'btn-no' : ''}" data-action="vote" data-v="no" aria-pressed="${vote === 'no'}">${t('vote_no', { n: counts.no })}</button>
         </div>
+        ${isUser && !state.reported.has('pub:' + p.id) ? `<button class="btn btn-ghost btn-report mt" data-action="report" data-type="pub" data-id="${esc(p.id)}">${t(state.armed === 'rep:pub:' + p.id ? 'sure_report' : 'report_place')}</button>` : ''}
       </div>
     </div>`;
   }
@@ -930,9 +983,34 @@
         </div>` : ''}
       <label class="field">${t('f_email')}<input id="pEmail" class="input" type="email" autocomplete="email" placeholder="you@example.com"></label>
       <label class="field">${t('f_password')}<input id="pPassword" class="input" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="${signup ? t('f_password_ph') : ''}"></label>
-      ${signup ? `<label class="check"><input type="checkbox" id="p18"> <span>${t('f_18')}</span></label>` : '<div class="mt"></div>'}
+      ${signup ? `<label class="check"><input type="checkbox" id="p18"> <span>${t('f_18', { terms: `<a href="${SITE}terms.html" target="_blank" rel="noopener">${t('terms_word')}</a>` })}</span></label>` : '<div class="mt"></div>'}
       <button class="btn btn-primary" data-action="${signup ? 'signup' : 'login'}">${t(signup ? 'create_profile' : 'login_btn')}</button>
       ${installCard()}
+      ${legalLinks()}
+    </div>`;
+  }
+
+  // правила, конфиденциальность, поддержка — страницы на сайте (нужны для App Store)
+  const legalLinks = () => `<p class="legal muted">
+      <a href="${SITE}terms.html" target="_blank" rel="noopener">${t('link_terms')}</a> ·
+      <a href="${SITE}privacy.html" target="_blank" rel="noopener">${t('link_privacy')}</a> ·
+      <a href="${SITE}support.html" target="_blank" rel="noopener">${t('link_support')}</a>
+    </p>`;
+
+  // первый запуск: «Тебе есть 18?» — приложение про алкоголь
+  function gateHTML() {
+    if (state.adult) return '';
+    return `<div class="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+      <div class="gate-box">
+        <div class="gate-ico">🍺</div>
+        ${state.underage ? `<p class="gate-text">${t('gate_bye')}</p>` : `
+          <h2 id="gateTitle">${t('gate_title')}</h2>
+          <p class="gate-text">${t('gate_text')}</p>
+          <div class="row wrap gate-btns">
+            <button class="btn btn-primary" data-action="adult-yes">${t('gate_yes')}</button>
+            <button class="btn" data-action="adult-no">${t('gate_no')}</button>
+          </div>`}
+      </div>
     </div>`;
   }
 
@@ -941,7 +1019,7 @@
   const isIOS = () => !/Android/.test(navigator.userAgent) &&
     (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)); // iPad выдаёт себя за Mac
   function installCard() {
-    if (isStandalone()) return '';
+    if (NATIVE || isStandalone()) return '';
     const how = state.installPrompt
       ? `<button class="btn btn-primary" data-action="install">${t('install_btn')}</button>`
       : `<p class="muted">${t(isIOS() ? 'install_ios' : 'install_other')}</p>`;
@@ -961,7 +1039,20 @@
       <div class="ico">${esc(f.emoji)}</div>
       <div class="main"><div class="title">${esc(f.name)}</div><div class="sub">${status}</div></div>
       <button class="btn btn-ghost btn-danger" data-action="remove-friend" data-id="${esc(f.id)}">${t(armed ? 'sure_q' : 'remove')}</button>
-    </li>`;
+      ${moreBtn(f.id)}
+    </li>${personMenu(f.id)}`;
+  }
+
+  function blockedCard() {
+    if (!state.blocks.length) return '';
+    return `<div class="card">
+      <h3>${t('blocked_h', { n: state.blocks.length })}</h3>
+      <ul class="list">${state.blocks.map(b => `<li class="item">
+        <div class="ico">${esc(b.emoji)}</div>
+        <div class="main"><div class="title">${esc(b.name)}</div></div>
+        <button class="btn btn-ghost" data-action="unblock" data-id="${esc(b.id)}">${t('unblock')}</button>
+      </li>`).join('')}</ul>
+    </div>`;
   }
 
   function viewMe() {
@@ -991,6 +1082,7 @@
           <div class="muted">${t('since_alcohol', { time: fmtTime(s.startedAt), g: grams(s.drinks) })}</div>
           ${sessionControls(s, true)}
           <p class="muted">${t('auto_end_note')}</p>
+          <p class="muted">${t('responsible')}</p>
         </div>`
         : `<div class="card">
           <h3>${t('not_in_pub_h')}</h3>
@@ -1047,10 +1139,13 @@
           }).join('')}</ul>
         </div>` : ''}
 
+      ${blockedCard()}
+
       <div class="row wrap mt">
         <button class="btn" data-action="logout">${t('logout')}</button>
         <button class="btn btn-ghost btn-danger" data-action="delete-me">${t(state.armed === 'delete-me' ? 'delete_sure' : 'delete_account')}</button>
       </div>
+      ${legalLinks()}
     </div>`;
   }
 
@@ -1131,6 +1226,7 @@
     renderView();
     renderChip();
     renderMarkers();
+    $('#gate').innerHTML = gateHTML();
   }
 
   // ---------- кнопки ----------
@@ -1146,9 +1242,54 @@
       state.armed = null;
       state.geo = null;
       state.editAvatar = false;
+      state.personMenu = null;
       render();
     },
     'select-pub': el => selectPub(el.dataset.id),
+    'adult-yes'() {
+      state.adult = true;
+      localStorage.setItem(ADULT_KEY, '1');
+      render();
+    },
+    'adult-no'() { state.underage = true; render(); },
+    'person-menu'(el) {
+      state.personMenu = state.personMenu === el.dataset.id ? null : el.dataset.id;
+      render();
+    },
+    // пожаловаться на человека, событие или пивную (двойное нажатие — подтверждение)
+    async report(el) {
+      if (!requireLogin()) return;
+      const type = el.dataset.type, id = el.dataset.id, key = type + ':' + id;
+      if (state.armed !== 'rep:' + key) { state.armed = 'rep:' + key; return render(); }
+      state.armed = null;
+      const ok = await withBusy(async () => {
+        await call(sb.rpc('report_content', { p_type: type, p_id: id }));
+        state.reported.add(key);
+        if (type === 'event') state.events = state.events.filter(e => e.id !== id);
+        state.personMenu = null;
+      });
+      if (ok) toast(t('reported_toast'));
+    },
+    async 'block-user'(el) {
+      const id = el.dataset.id;
+      if (state.armed !== 'blk:' + id) { state.armed = 'blk:' + id; return render(); }
+      state.armed = null;
+      const who = drinkers().find(d => d.id === id) || personById(id) || { name: '' };
+      const ok = await withBusy(async () => {
+        await call(sb.rpc('block_user', { p_user: id }));
+        state.personMenu = null;
+        await Promise.all([loadSafety(), loadPeople(), loadLive()]);
+      });
+      if (ok) toast(t('blocked_toast', { who: who.name }));
+    },
+    async unblock(el) {
+      const id = el.dataset.id;
+      const ok = await withBusy(async () => {
+        await call(sb.from('blocks').delete().eq('blocker', me()).eq('blocked', id));
+        await Promise.all([loadSafety(), loadLive()]);
+      });
+      if (ok) toast(t('unblocked_toast'));
+    },
     'toggle-events'() { state.onlyEvents = !state.onlyEvents; render(); },
     'near-dismiss'() { state.nearPubId = null; render(); },
     'find-my-pub': () => locate({ findPub: true }),
@@ -1168,6 +1309,7 @@
       const title = value('evTitle'), details = value('evDetails');
       const start = new Date(value('evStart')), end = new Date(value('evEnd'));
       if (title.length < 2) return toast(t('ev_err_title'));
+      if (isOffensive(title, details)) return toast(t('err_offensive'));
       if (isNaN(start) || isNaN(end) || end <= start || end - start > 31 * 864e5 || end <= Date.now()) return toast(t('ev_err_time'));
       const ok = await withBusy(async () => {
         await call(sb.from('events').insert({
@@ -1218,6 +1360,7 @@
       const name = value('aName');
       if (!state.pendingPoint) return toast(t('add_hint'));
       if (!name) return toast(t('enter_name'));
+      if (isOffensive(name, value('aAddress'), value('aCity'))) return toast(t('err_offensive'));
       if (!checked('aTank')) return toast(t('only_tank_places'));
       let newId = null;
       const ok = await withBusy(async () => {
@@ -1258,6 +1401,7 @@
     async signup() {
       const name = value('pName'), email = value('pEmail'), password = document.getElementById('pPassword').value;
       if (!name) return toast(t('enter_nick'));
+      if (isOffensive(name)) return toast(t('err_offensive'));
       if (!email || !password) return toast(t('enter_email_pw'));
       if (password.length < 6) return toast(t('err_short_pw'));
       if (!checked('p18')) return toast(t('adults_only'));
@@ -1325,7 +1469,8 @@
   };
 
   // действия, которые нельзя запускать, пока предыдущее ещё идёт
-  const EXCLUSIVE = new Set(['checkin', 'end', 'vote', 'add-save', 'signup', 'login', 'delete-me', 'remove-friend', 'visibility', 'set-avatar', 'event-save', 'event-delete']);
+  const EXCLUSIVE = new Set(['checkin', 'end', 'vote', 'add-save', 'signup', 'login', 'delete-me', 'remove-friend', 'visibility', 'set-avatar', 'event-save', 'event-delete',
+    'report', 'block-user', 'unblock']);
 
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-action]');
@@ -1335,7 +1480,7 @@
     if (!fn) return;
     e.preventDefault();
     if (state.busy && EXCLUSIVE.has(name)) return;
-    if (state.armed && !['delete-me', 'remove-friend', 'event-delete'].includes(name)) state.armed = null;
+    if (state.armed && !['delete-me', 'remove-friend', 'event-delete', 'report', 'block-user'].includes(name)) state.armed = null;
     fn(el, e);
   });
   document.addEventListener('keydown', e => {
@@ -1393,7 +1538,10 @@
     const { data } = await sb.auth.getSession();
     await setUser(data.session ? data.session.user : null);
     // если доступ к GPS уже разрешён — тихо проверяем, не сидим ли мы в пивной
-    if (navigator.permissions && navigator.geolocation) {
+    const gps = plugin('Geolocation');
+    if (gps) {
+      gps.checkPermissions().then(p => { if (p.location === 'granted') locate({ silent: true }); }).catch(() => {});
+    } else if (navigator.permissions && navigator.geolocation) {
       navigator.permissions.query({ name: 'geolocation' })
         .then(p => { if (p.state === 'granted') locate({ silent: true }); })
         .catch(() => { /* браузер не умеет спрашивать про разрешения */ });

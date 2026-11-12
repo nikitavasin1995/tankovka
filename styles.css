@@ -364,3 +364,30 @@ textarea.input { resize: vertical; min-height: 56px; font: inherit; }
 .note-near { background: #E8F5E9; color: #1B5E20; margin-top: 10px; }
 .note-near .btn-ghost { color: #1B5E20; }
 .seg button { white-space: nowrap; }
+
+/* ---------- App Store: жалобы, блокировка, 18+, правила ---------- */
+.btn-more {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--line); background: #fff; color: var(--muted);
+  font-size: 18px; line-height: 1; display: grid; place-items: center;
+}
+.btn-more[aria-expanded="true"] { background: var(--cream); border-color: var(--amber); color: var(--brown); }
+.person-menu { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0 0 8px 50px; }
+.btn-report { color: var(--muted); font-size: 13px; }
+.ev-item .btn-report { margin-top: 4px; }
+.legal { margin-top: 18px; font-size: 12px; text-align: center; }
+.legal a { color: var(--muted); }
+.gate {
+  position: fixed; inset: 0; z-index: 5000;
+  display: grid; place-items: center; padding: 24px;
+  background: rgba(43, 29, 14, .92);
+}
+.gate-box {
+  width: 100%; max-width: 360px; padding: 24px 22px;
+  border-radius: 18px; background: var(--cream); text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+}
+.gate-ico { font-size: 44px; }
+.gate-box h2 { margin: 6px 0 8px; font-size: 24px; }
+.gate-text { margin: 0 0 16px; line-height: 1.45; }
+.gate-btns { justify-content: center; }
