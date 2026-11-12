@@ -326,6 +326,7 @@ grant execute on function public.check_in(text), public.end_session(), public.ad
 grant execute on function public.pub_vote_counts() to anon, authenticated;
 
 
+
 -- ---------- стартовые пивные с танковым пивом (из открытых источников, ноябрь 2026) ----------
 insert into public.pubs (id, name, address, city, brand, lat, lng, source_type, source_name, source_url) values
   ('seed-1', 'Lokál Dlouhááá', 'Dlouhá 33, Praha 1', 'Praha', 'Pilsner Urquell', 50.090696, 14.425758, 'public', 'HelloPrague 2026', 'https://www.helloprague.net/?p=2778'),
@@ -396,5 +397,12 @@ insert into public.pubs (id, name, address, city, brand, lat, lng, source_type, 
   ('seed-67', 'Panský pivovar Holešov', 'Masarykova 655/19, Holešov', 'Holešov', null, 49.331375, 17.582844, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
   ('seed-68', 'Nádražní pivnice Zámecká', 'Litoměřická 1001/15, Teplice', 'Teplice', 'Zlatopramen', 50.633957, 13.813786, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
   ('seed-69', 'Pivnice Na Štokách', 'Jihlavská 1820, Humpolec', 'Humpolec', 'Bernard', 49.539688, 15.359975, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
-  ('seed-70', 'Sport bar Zero', 'Tř. 1. máje 1783, Hranice', 'Hranice', 'Radegast', 49.554526, 17.735964, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku')
+  ('seed-70', 'Sport bar Zero', 'Tř. 1. máje 1783, Hranice', 'Hranice', 'Radegast', 49.554526, 17.735964, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-71', 'Vinohradský Parlament', 'Korunní 1, Praha 2', 'Praha', 'Pilsner Urquell', 50.075421, 14.438069, 'public', 'Prague.eu', 'https://prague.eu/cs/objevujte/restaurace-vinohradsky-parlament/'),
+  ('seed-72', 'Spravovna', 'Ondříčkova 1, Praha 3', 'Praha', 'Pilsner Urquell', 50.07914, 14.448416, 'public', 'Prague.eu', 'https://prague.eu/cs/objevujte/spravovna/'),
+  ('seed-73', 'Plzeňka Olše', 'Táboritská 17/26, Praha 3', 'Praha', 'Pilsner Urquell', 50.082262, 14.458099, 'public', 'MediaGuru', 'https://www.mediaguru.cz/pilsner-urquell-ma-novou-konceptovou-hospodu-plzenku'),
+  ('seed-74', 'Restaurace Kulaťák', 'Vítězné náměstí 12, Praha 6', 'Praha', 'Pilsner Urquell', 50.100485, 14.397144, 'public', 'Prague.eu', 'https://prague.eu/cs/objevujte/restaurace-kulatak/'),
+  ('seed-75', 'Na Kopečku', 'Pelhřimovská 1021/1, Praha 4', 'Praha', 'Pilsner Urquell', 50.043131, 14.454119, 'public', 'firmy.cz — pivo z tanku', 'https://www.firmy.cz/stitek/pivo-z-tanku'),
+  ('seed-76', 'Automat Matuška', 'Dejvická 4, Praha 6', 'Praha', 'Matuška', 50.098045, 14.404276, 'user', null, null),
+  ('seed-77', 'Automat Matuška II', 'nám. Jiřího z Poděbrad 16, Praha 3', 'Praha', 'Matuška', 50.078161, 14.452137, 'user', null, null)
 on conflict (id) do nothing;
