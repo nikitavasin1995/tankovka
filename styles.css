@@ -317,3 +317,50 @@ a { color: var(--amber-dark); }
 .geo-item .ico { background: #EEF2F7; }
 .field + .geo-list { margin-top: 4px; }
 .pin-search { background: #fff; border: 2px solid var(--me); }
+
+/* аватар в профиле — кнопка смены */
+.avatar-btn { position: relative; padding: 0; cursor: pointer; }
+.avatar-btn:hover { box-shadow: 0 0 0 3px var(--cream); }
+.avatar-pen {
+  position: absolute; right: -4px; bottom: -4px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--brown); color: #fff; font-size: 12px; border: 2px solid #fff;
+}
+
+/* ---------- события и акции ---------- */
+:root { --event: #D81B60; --event-dark: #AD1457; --soon: #8E24AA; }
+.pin-event {
+  background: var(--event); color: #fff; border-color: #fff;
+  animation: pulse-ev 1.6s ease-out infinite;
+}
+@keyframes pulse-ev {
+  0%   { box-shadow: 0 0 0 0 rgba(216, 27, 96, .75), 0 1px 4px rgba(0, 0, 0, .35); }
+  70%  { box-shadow: 0 0 0 16px rgba(216, 27, 96, 0), 0 1px 4px rgba(0, 0, 0, .35); }
+  100% { box-shadow: 0 0 0 0 rgba(216, 27, 96, 0), 0 1px 4px rgba(0, 0, 0, .35); }
+}
+.pin-soon { box-shadow: 0 0 0 3px var(--soon), 0 1px 4px rgba(0, 0, 0, .35); }
+.cluster-event { background: var(--event); color: #fff; animation: pulse-ev 1.6s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .pin-event, .cluster-event { animation: none; } }
+
+.badge-event { background: #F3E5F5; color: #6A1B9A; }
+.badge-promo { background: #FFF3E0; color: #E65100; }
+.badge-live  { background: var(--event); color: #fff; }
+.badge-public { background: #E3F2FD; color: #1565C0; margin-left: 4px; }
+.item-event .ico { background: #FCE4EC; }
+.ev-line { color: var(--event-dark); font-weight: 600; }
+.ev-soon { color: var(--soon); }
+.card-event { border-color: var(--event); box-shadow: 0 0 0 3px rgba(216, 27, 96, .12); }
+.card .list .ev-item { list-style: none; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.card .list .ev-item:last-child { border-bottom: 0; }
+.ev-title { margin-top: 4px; font-weight: 700; }
+.ev-live .ev-title { color: var(--event-dark); }
+.ev-times { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 380px) { .ev-times { grid-template-columns: 1fr; } }
+textarea.input { resize: vertical; min-height: 56px; font: inherit; }
+.btn-event-on { background: var(--event); border-color: var(--event); color: #fff; }
+
+/* плашка «вы в такой-то пивной?» */
+.note-near { background: #E8F5E9; color: #1B5E20; margin-top: 10px; }
+.note-near .btn-ghost { color: #1B5E20; }
+.seg button { white-space: nowrap; }

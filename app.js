@@ -19,7 +19,14 @@
   const SHOT_ABV = 0.40;                      // крепкое (водка, ром, бехеровка, сливовица) ≈ 40 %
   const BRANDS = ['Pilsner Urquell', 'Kozel', 'Radegast', 'Gambrinus', 'Staropramen',
     'Budějovický Budvar', 'Krušovice', 'Bernard', 'Svijany'];
-  const AVATARS = ['🍺', '🧔', '👩', '🧢', '🎸', '🚲', '🦊', '🐻', '🤠', '👽'];
+  // аватары: пиво и выпивка · закуски к пиву · звери с пивных этикеток · игры в пивной · люди
+  const AVATARS = [
+    '🍺', '🍻', '🥃', '🛢️', '🌾', '🍯', '🥂',
+    '🥨', '🌭', '🍖', '🧀', '🥒', '🧅', '🍟',
+    '🐐', '🦆', '🦌', '🐻', '🦊', '🐗', '🦉',
+    '🎳', '🎯', '🃏', '⚽', '🏒', '🎸', '🚲',
+    '🧔', '👩', '🧢', '🤠', '👽',
+  ];
   const PENDING_FRIEND_KEY = 'tk.pendingFriend';
 
   // ---------- состояние ----------
@@ -48,6 +55,13 @@
     authMode: 'signup',
     armed: null,       // кнопка «нажмите ещё раз» для опасных действий
     installPrompt: null, // событие браузера «можно установить» (Android/Chrome)
+    editAvatar: false,   // открыт выбор аватара в профиле
+    events: [],          // события и акции в пивных (текущие и на 7 дней вперёд)
+    publicLive: [],      // отметки людей, которые показывают себя всем (не друзья)
+    nearPubId: null,     // пивная рядом по GPS — предлагаем отметиться
+    onlyEvents: false,   // фильтр «только с событиями»
+    eventForm: null,     // id пивной, для которой открыта форма нового события
+    evKind: 'event',
   };
 
   // приглашение в друзья по ссылке ?friend=КОД
@@ -163,14 +177,50 @@
     drinks: (r.drinks || []).map(d => ({ kind: d.kind || 'beer', size: Number(d.size), at: Date.parse(d.created_at) })).sort((a, b) => a.at - b.at),
   });
 
+  // кто сейчас в пивных: я, друзья и те, кто показывает себя всем
   function drinkers() {
-    return state.live.map(s => {
-      const person = personById(s.userId);
+    return state.live.concat(state.publicLive || []).map(s => {
+      const person = s.person || personById(s.userId);
       if (!person || !pubById(s.pubId)) return null;
-      return { id: s.userId, isMe: s.userId === me(), name: person.name, emoji: person.emoji, pubId: s.pubId, since: s.startedAt, drinks: s.drinks };
+      return { id: s.userId, isMe: s.userId === me(), isPublic: !!s.person, name: person.name, emoji: person.emoji, pubId: s.pubId, since: s.startedAt, drinks: s.drinks };
     }).filter(Boolean);
   }
   const drinkersAt = pubId => drinkers().filter(d => d.pubId === pubId);
+
+  // ---------- события и акции ----------
+  const EVENTS_AHEAD_MS = 7 * 24 * 3600e3;
+  const isLive = e => e.start <= Date.now() && e.end > Date.now();
+  const eventsAt = pubId => state.events.filter(e => e.pubId === pubId && e.end > Date.now()).sort((a, b) => a.start - b.start);
+  const activeEvent = pubId => state.events.find(e => e.pubId === pubId && isLive(e));
+  const nextEvent = pubId => eventsAt(pubId).find(e => e.start > Date.now());
+  const soonEvent = pubId => { const e = nextEvent(pubId); return e && e.start - Date.now() < 24 * 3600e3 ? e : null; };
+  const pad2 = n => String(n).padStart(2, '0');
+  const toLocalInput = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  function dayLabel(ts) {
+    const d = new Date(ts), today = new Date();
+    const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 864e5);
+    if (diff === 0) return t('today');
+    if (diff === 1) return t('tomorrow');
+    return d.toLocaleDateString(I18N.locale, { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  function fmtWhen(e) {
+    const sameDay = new Date(e.start).toDateString() === new Date(e.end - 1).toDateString();
+    return sameDay
+      ? `${dayLabel(e.start)} ${fmtTime(e.start)}–${fmtTime(e.end)}`
+      : `${dayLabel(e.start)} ${fmtTime(e.start)} – ${dayLabel(e.end)} ${fmtTime(e.end)}`;
+  }
+  async function loadEvents() {
+    if (!sb) return;
+    const rows = await call(sb.from('events')
+      .select('id,pub_id,kind,title,details,starts_at,ends_at,created_by')
+      .gt('ends_at', new Date().toISOString())
+      .lt('starts_at', new Date(Date.now() + EVENTS_AHEAD_MS).toISOString())
+      .order('starts_at').limit(500));
+    state.events = rows.map(r => ({
+      id: r.id, pubId: r.pub_id, kind: r.kind, title: r.title, details: r.details || '',
+      start: Date.parse(r.starts_at), end: Date.parse(r.ends_at), mine: !!me() && r.created_by === me(),
+    }));
+  }
 
   async function loadPubs() {
     const rows = await call(sb.from('pubs')
@@ -190,10 +240,18 @@
   }
   async function loadLive() {
     const since = new Date(Date.now() - SESSION_MAX_MS).toISOString();
-    const rows = await call(sb.from('sessions')
-      .select('id,user_id,pub_id,started_at,ended_at,drinks(size,kind,created_at)')
-      .is('ended_at', null).gt('started_at', since));
+    const [rows, everyone] = await Promise.all([
+      call(sb.from('sessions')
+        .select('id,user_id,pub_id,started_at,ended_at,drinks(size,kind,created_at)')
+        .is('ended_at', null).gt('started_at', since)),
+      // люди, которые показывают себя всем (сервер отдаёт только имя, аватар, пивную и выпитое)
+      Promise.resolve(sb.rpc('public_live')).then(r => (r && !r.error && r.data) || [], () => []),
+    ]);
     state.live = rows.map(fromSessionRow);
+    const seen = new Set(state.live.map(s => s.userId));
+    state.publicLive = everyone.filter(r => !seen.has(r.user_id)).map(r => Object.assign(
+      fromSessionRow({ id: 'everyone-' + r.user_id, user_id: r.user_id, pub_id: r.pub_id, started_at: r.started_at, ended_at: null, drinks: r.drinks }),
+      { person: { id: r.user_id, name: r.name, emoji: r.emoji } }));
   }
   async function loadStats() {
     state.stats = await call(sb.rpc('my_stats'));
@@ -214,13 +272,13 @@
 
   async function setUser(user) {
     state.user = user;
-    Object.assign(state, { profile: null, friends: [], live: [], history: [], stats: null, myVotes: {}, armed: null });
+    Object.assign(state, { profile: null, friends: [], live: [], publicLive: [], history: [], stats: null, myVotes: {}, armed: null, eventForm: null });
     if (!user) { state.loading = false; render(); return; }
     state.loading = true;
     render();
     try {
       await loadPeople();
-      await Promise.all([loadLive(), loadMine()]);
+      await Promise.all([loadLive(), loadMine(), loadEvents().catch(() => {})]);
     } catch (e) {
       toast(errText(e));
     }
@@ -236,9 +294,9 @@
   }
 
   async function refreshLive() {
-    if (!state.user || state.busy) return;
+    if (state.busy) return;
     try {
-      await Promise.all([loadLive(), loadPeople()]);
+      await Promise.all([loadEvents().catch(() => {}), state.user ? loadLive() : null, state.user ? loadPeople() : null]);
       render();
     } catch (e) { /* тихо: попробуем в следующий раз */ }
   }
@@ -385,11 +443,15 @@
     showCoverageOnHover: false,
     maxClusterRadius: 45,
     disableClusteringAtZoom: 15,
-    iconCreateFunction: cluster => L.divIcon({
-      className: '',
-      html: `<div class="cluster">🍺 ${cluster.getChildCount()}</div>`,
-      iconSize: [52, 36], iconAnchor: [26, 18],
-    }),
+    // если внутри кружка есть пивная, где сейчас событие, — кружок тоже «горит»
+    iconCreateFunction: cluster => {
+      const hot = cluster.getAllChildMarkers().some(m => m.options.hasEvent);
+      return L.divIcon({
+        className: '',
+        html: `<div class="cluster${hot ? ' cluster-event' : ''}">${hot ? '🎉' : '🍺'} ${cluster.getChildCount()}</div>`,
+        iconSize: [52, 36], iconAnchor: [26, 18],
+      });
+    },
   }) : L.layerGroup()).addTo(map);
   let meMarker = null;
   let pendingMarker = null;
@@ -399,16 +461,22 @@
     const mine = mySession();
     state.pubs.forEach(p => {
       const n = drinkersAt(p.id).length;
+      const ev = activeEvent(p.id);
+      const soon = !ev && soonEvent(p.id);
       const cls = ['pin',
         p.source.type === 'user' ? 'pin-user' : '',
+        ev ? 'pin-event' : soon ? 'pin-soon' : '',
         mine && mine.pubId === p.id ? 'pin-mine' : '',
         state.selectedId === p.id ? 'pin-active' : ''].join(' ');
       const icon = L.divIcon({
         className: '',
-        html: `<div class="${cls}">🍺${n ? `<span class="pin-badge">${n}</span>` : ''}</div>`,
+        html: `<div class="${cls}">${ev ? '🎉' : '🍺'}${n ? `<span class="pin-badge">${n}</span>` : ''}</div>`,
         iconSize: [34, 34], iconAnchor: [17, 17],
       });
-      L.marker([p.lat, p.lng], { icon, title: p.name, keyboard: true, zIndexOffset: state.selectedId === p.id ? 1000 : 0 })
+      L.marker([p.lat, p.lng], {
+        icon, title: ev ? `${p.name} — ${ev.title}` : p.name, keyboard: true, hasEvent: !!ev,
+        zIndexOffset: state.selectedId === p.id ? 1000 : ev ? 500 : 0,
+      })
         .on('click', () => selectPub(p.id))
         .addTo(pubLayer);
     });
@@ -582,19 +650,46 @@
     render();
   }
 
-  function locate() {
-    if (!navigator.geolocation) return toast(t('geo_unsupported'));
-    toast(t('geo_locating'));
+  // ближайшая пивная в радиусе maxM метров
+  function nearestPub(pos, maxM) {
+    let best = null;
+    state.pubs.forEach(p => { const d = distance(pos, p); if (d <= maxM && (!best || d < best.d)) best = { p, d }; });
+    return best && best.p;
+  }
+
+  // GPS: где я и в какой пивной сижу. Позицию никуда не отправляем — только предлагаем
+  // отметиться в ближайшей пивной; друзья/все видят пивную, а не точку на карте.
+  function locate(opts) {
+    opts = opts || {};
+    if (!navigator.geolocation) { if (!opts.silent) toast(t('geo_unsupported')); return; }
+    if (!opts.silent) toast(t('geo_locating'));
     navigator.geolocation.getCurrentPosition(
       pos => {
         state.myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        map.setView([state.myPos.lat, state.myPos.lng], 14);
+        const near = nearestPub(state.myPos, 100);
+        state.nearPubId = near ? near.id : null;
+        if (near) map.setView([near.lat, near.lng], 17);
+        else if (!opts.silent) map.setView([state.myPos.lat, state.myPos.lng], 14);
         render();
-        toast(t('geo_done'));
+        if (opts.silent) return;
+        if (near) toast(t('near_found', { name: near.name }));
+        else toast(t(opts.findPub ? 'gps_no_pub' : 'geo_done'));
       },
-      () => toast(t('geo_failed')),
+      () => { if (!opts.silent) toast(t('geo_failed')); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
+  }
+
+  // плашка «Вы в такой-то пивной? — Я тут пью»
+  function nearBanner() {
+    const p = state.nearPubId && pubById(state.nearPubId);
+    const s = mySession();
+    if (!p || !state.myPos || (s && s.pubId === p.id)) return '';
+    return `<div class="note note-near">${t('near_pub_banner', { name: esc(p.name), d: fmtDist(distance(state.myPos, p)) })}
+      <div class="row wrap mt">
+        <button class="btn btn-primary" data-action="checkin" data-id="${esc(p.id)}">${t('drinking_here_btn')}</button>
+        <button class="btn btn-ghost" data-action="near-dismiss">${t('not_here')}</button>
+      </div></div>`;
   }
 
   // ---------- экраны ----------
@@ -605,16 +700,21 @@
     const ref = refPoint();
     const rows = state.pubs
       .filter(p => !q || [p.name, p.city, p.brand, p.address].join(' ').toLowerCase().includes(q))
+      .filter(p => !state.onlyEvents || activeEvent(p.id) || nextEvent(p.id))
       .map(p => ({ p, d: distance(ref, p) }))
       .sort((a, b) => a.d - b.d);
-    if (!rows.length) return `<li class="muted">${t('nothing_found')}</li>`;
+    if (!rows.length) return `<li class="muted">${t(state.onlyEvents ? 'no_events_anywhere' : 'nothing_found')}</li>`;
     return rows.map(({ p, d }) => {
       const n = drinkersAt(p.id).length;
-      return `<li class="item" role="button" tabindex="0" data-action="select-pub" data-id="${esc(p.id)}">
-        <div class="ico">🍺</div>
+      const ev = activeEvent(p.id);
+      const next = !ev && nextEvent(p.id);
+      return `<li class="item ${ev ? 'item-event' : ''}" role="button" tabindex="0" data-action="select-pub" data-id="${esc(p.id)}">
+        <div class="ico">${ev ? '🎉' : '🍺'}</div>
         <div class="main">
           <div class="title">${esc(p.name)} ${p.source.type === 'user' ? `<span class="badge badge-user">${t('badge_new')}</span>` : ''}</div>
           <div class="sub">${esc(p.city || t('country'))} · ${esc(p.brand || t('no_brand'))}</div>
+          ${ev ? `<div class="sub ev-line">🎉 ${t('event_now')}: ${esc(ev.title)}</div>`
+            : next ? `<div class="sub ev-soon">⏰ ${dayLabel(next.start)} ${fmtTime(next.start)} · ${esc(next.title)}</div>` : ''}
         </div>
         <div class="meta">${fmtDist(d)}${n ? `<br>👥 ${n}` : ''}</div>
       </li>`;
@@ -624,10 +724,12 @@
   function viewList() {
     return `<div class="view">
       <div class="row wrap"><span class="badge badge-tank">${t('only_tank_badge')}</span><span class="muted">${tn('n_places', state.pubs.length)}</span></div>
+      ${nearBanner()}
       <input id="search" class="input mt" type="search" placeholder="${t('search_ph')}" aria-label="${t('search_label')}" value="${esc(state.query)}">
       <div class="row wrap mt">
         <button class="btn" data-action="locate">${t('near_me_btn')}</button>
         <button class="btn" data-action="add-start">${t('add_pub_btn')}</button>
+        <button class="btn ${state.onlyEvents ? 'btn-event-on' : ''}" data-action="toggle-events" aria-pressed="${state.onlyEvents}">${t('filter_events')}${liveEventPubs() ? ` · ${liveEventPubs()}` : ''}</button>
       </div>
       <p class="muted">${t(state.myPos ? 'nearest_me' : 'nearest_center')}</p>
       <ul class="list" id="pubList">${pubListHTML()}</ul>
@@ -636,15 +738,64 @@
     </div>`;
   }
 
+  const liveEventPubs = () => new Set(state.events.filter(isLive).map(e => e.pubId)).size;
+
+  function eventItem(e) {
+    const live = isLive(e);
+    return `<li class="ev-item ${live ? 'ev-live' : ''}">
+      <div class="row wrap">
+        <span class="badge ${e.kind === 'promo' ? 'badge-promo' : 'badge-event'}">${t(e.kind === 'promo' ? 'kind_promo' : 'kind_event')}</span>
+        ${live ? `<span class="badge badge-live">● ${t('event_now')}</span>` : ''}
+        <span class="muted">${fmtWhen(e)}</span>
+      </div>
+      <div class="ev-title">${esc(e.title)}</div>
+      ${e.details ? `<div class="muted">${esc(e.details)}</div>` : ''}
+      ${e.mine ? `<button class="btn btn-ghost btn-danger" data-action="event-delete" data-id="${esc(e.id)}">${t(state.armed === 'ev:' + e.id ? 'sure_q' : 'ev_delete')}</button>` : ''}
+    </li>`;
+  }
+
+  function eventForm() {
+    const start = new Date();
+    start.setMinutes(Math.floor(start.getMinutes() / 15) * 15, 0, 0);   // по умолчанию — «идёт сейчас»
+    const end = new Date(start.getTime() + 3 * 3600e3);
+    return `<div class="ev-form">
+      <div class="seg mt">
+        <button data-action="ev-kind" data-k="event" aria-pressed="${state.evKind !== 'promo'}">${t('kind_event')}</button>
+        <button data-action="ev-kind" data-k="promo" aria-pressed="${state.evKind === 'promo'}">${t('kind_promo')}</button>
+      </div>
+      <label class="field">${t('ev_title')}<input id="evTitle" class="input" maxlength="80" placeholder="${t('ev_title_ph')}"></label>
+      <label class="field">${t('ev_details')} <span class="muted">${t('optional')}</span><textarea id="evDetails" class="input" maxlength="300" rows="2"></textarea></label>
+      <div class="ev-times">
+        <label class="field">${t('ev_start')}<input id="evStart" class="input" type="datetime-local" value="${toLocalInput(start)}"></label>
+        <label class="field">${t('ev_end')}<input id="evEnd" class="input" type="datetime-local" value="${toLocalInput(end)}"></label>
+      </div>
+      <div class="row wrap mt">
+        <button class="btn btn-primary" data-action="event-save">${t('ev_save')}</button>
+        <button class="btn btn-ghost" data-action="event-cancel">${t('cancel_plain')}</button>
+      </div>
+    </div>`;
+  }
+
+  function eventsCard(p) {
+    const list = eventsAt(p.id);
+    return `<div class="card ${list.some(isLive) ? 'card-event' : ''}">
+      <h3>${t('events_h')}</h3>
+      ${list.length ? `<ul class="list">${list.map(eventItem).join('')}</ul>` : `<p class="muted">${t('no_events')}</p>`}
+      ${state.eventForm === p.id ? eventForm()
+        : `<button class="btn mt" data-action="event-form" data-id="${esc(p.id)}">${t('add_event_btn')}</button>`}
+    </div>`;
+  }
+
   function drinkerItem(d, opts) {
     opts = opts || {};
     const pub = pubById(d.pubId);
-    const hidden = d.isMe && state.profile && state.profile.visibility === 'nobody';
+    const vis = d.isMe && state.profile ? state.profile.visibility : null;
+    const hidden = vis === 'nobody';
     const attrs = opts.clickable ? `role="button" tabindex="0" data-action="select-pub" data-id="${esc(d.pubId)}"` : '';
     return `<li class="item" ${attrs}>
       <div class="ico ${d.isMe ? 'ico-me' : ''}">${esc(d.emoji)}</div>
       <div class="main">
-        <div class="title">${d.isMe ? t('you') : esc(d.name)} ${hidden ? `<span class="badge">${t('hidden_badge')}</span>` : ''}</div>
+        <div class="title">${d.isMe ? t('you') : esc(d.name)} ${hidden ? `<span class="badge">${t('hidden_badge')}</span>` : ''}${vis === 'everyone' ? `<span class="badge badge-public">${t('seen_by_all')}</span>` : ''}${d.isPublic ? `<span class="badge badge-public">${t('not_friend_badge')}</span>` : ''}</div>
         <div class="sub">${opts.showPub ? esc(pub.name) + ' · ' : ''}${t('since', { time: fmtTime(d.since) })}</div>
       </div>
       <div class="meta">${drinksMeta(d.drinks)}${opts.dist != null ? `<br>${fmtDist(opts.dist)}` : ''}</div>
@@ -700,6 +851,8 @@
           <button class="btn btn-primary" data-action="checkin" data-id="${esc(p.id)}">${t('drinking_here_btn')}</button>
           <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}" target="_blank" rel="noopener">${t('route')}</a>
         </div>`}
+
+      ${eventsCard(p)}
 
       <div class="card">
         <h3>${t('drinking_now_h')}${state.user ? ` (${here.length})` : ''}</h3>
@@ -829,9 +982,13 @@
 
     return `<div class="view">
       <div class="profile">
-        <div class="avatar">${esc(p.emoji)}</div>
+        <button class="avatar avatar-btn" data-action="avatar-edit" aria-expanded="${state.editAvatar}" title="${t('change_avatar')}" aria-label="${t('change_avatar')}">${esc(p.emoji)}<span class="avatar-pen" aria-hidden="true">✎</span></button>
         <div><div class="title" style="font-size:18px">${esc(p.name)}</div><div class="muted">${t('member_since', { date: fmtDate(p.created_at) })}</div></div>
       </div>
+      ${state.editAvatar ? `<div class="card">
+          <h3>${t('change_avatar')}</h3>
+          <div class="emojis">${AVATARS.map(e => `<button class="emoji" data-action="set-avatar" data-e="${e}" aria-pressed="${e === p.emoji}" aria-label="${t('f_avatar_aria', { e })}">${e}</button>`).join('')}</div>
+        </div>` : ''}
 
       ${s && sp ? `<div class="card card-session">
           <h3>${t('now_at', { pub: esc(sp.name) })}</h3>
@@ -843,7 +1000,11 @@
         : `<div class="card">
           <h3>${t('not_in_pub_h')}</h3>
           <p class="muted">${t('not_in_pub_text')}</p>
-          <button class="btn" data-action="tab" data-tab="pubs">${t('open_pubs')}</button>
+          ${nearBanner()}
+          <div class="row wrap">
+            <button class="btn btn-primary" data-action="find-my-pub">${t('gps_find_pub')}</button>
+            <button class="btn" data-action="tab" data-tab="pubs">${t('open_pubs')}</button>
+          </div>
         </div>`}
 
       <div class="card">
@@ -871,9 +1032,10 @@
         <h3>${t('who_sees_h')}</h3>
         <div class="seg">
           <button data-action="visibility" data-v="friends" aria-pressed="${p.visibility === 'friends'}">${t('vis_friends')}</button>
+          <button data-action="visibility" data-v="everyone" aria-pressed="${p.visibility === 'everyone'}">${t('vis_everyone')}</button>
           <button data-action="visibility" data-v="nobody" aria-pressed="${p.visibility === 'nobody'}">${t('vis_nobody')}</button>
         </div>
-        <p class="muted">${t(p.visibility === 'friends' ? 'vis_friends_text' : 'vis_nobody_text')}</p>
+        <p class="muted">${t({ friends: 'vis_friends_text', everyone: 'vis_everyone_text' }[p.visibility] || 'vis_nobody_text')}</p>
       </div>
 
       ${installCard()}
@@ -908,7 +1070,7 @@
     const kept = {};
     const focusedId = document.activeElement && view.contains(document.activeElement) ? document.activeElement.id : null;
     if (sameScreen) {
-      view.querySelectorAll('input[id], select[id]').forEach(el => {
+      view.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => {
         kept[el.id] = el.type === 'checkbox' ? el.checked : el.value;
       });
     }
@@ -988,9 +1150,50 @@
       state.selectedId = null;
       state.armed = null;
       state.geo = null;
+      state.editAvatar = false;
       render();
     },
     'select-pub': el => selectPub(el.dataset.id),
+    'toggle-events'() { state.onlyEvents = !state.onlyEvents; render(); },
+    'near-dismiss'() { state.nearPubId = null; render(); },
+    'find-my-pub': () => locate({ findPub: true }),
+    'event-form'(el) {
+      if (!requireLogin()) return;
+      state.eventForm = el.dataset.id;
+      state.evKind = 'event';
+      render();
+      const input = document.getElementById('evTitle');
+      if (input) input.focus();
+    },
+    'event-cancel'() { state.eventForm = null; render(); },
+    'ev-kind'(el) { state.evKind = el.dataset.k === 'promo' ? 'promo' : 'event'; render(); },
+    async 'event-save'() {
+      const pubId = state.eventForm;
+      if (!pubId) return;
+      const title = value('evTitle'), details = value('evDetails');
+      const start = new Date(value('evStart')), end = new Date(value('evEnd'));
+      if (title.length < 2) return toast(t('ev_err_title'));
+      if (isNaN(start) || isNaN(end) || end <= start || end - start > 31 * 864e5 || end <= Date.now()) return toast(t('ev_err_time'));
+      const ok = await withBusy(async () => {
+        await call(sb.from('events').insert({
+          pub_id: pubId, kind: state.evKind === 'promo' ? 'promo' : 'event', title, details: details || null,
+          starts_at: start.toISOString(), ends_at: end.toISOString(),
+        }));
+        state.eventForm = null;
+        await loadEvents();
+      });
+      if (ok) toast(t('ev_saved'));
+    },
+    async 'event-delete'(el) {
+      const id = el.dataset.id;
+      if (state.armed !== 'ev:' + id) { state.armed = 'ev:' + id; return render(); }
+      state.armed = null;
+      const ok = await withBusy(async () => {
+        await call(sb.from('events').delete().eq('id', id));
+        await loadEvents();
+      });
+      if (ok) toast(t('ev_deleted'));
+    },
     'geo-pick': el => pickGeo(Number(el.dataset.i)),
     back() { state.view = 'list'; state.selectedId = null; state.geo = null; render(); },
     checkin: el => checkIn(el.dataset.id),
@@ -1006,7 +1209,7 @@
     undo: undoDrink,
     end: endSession,
     vote: el => vote(state.selectedId, el.dataset.v),
-    locate,
+    locate: () => locate({}),
     'add-start'() {
       if (!requireLogin()) return;
       state.tab = 'pubs';
@@ -1040,6 +1243,17 @@
       clearAddMode();
       selectPub(newId);
       toast(t('pub_added'));
+    },
+    'avatar-edit'() { state.editAvatar = !state.editAvatar; render(); },
+    async 'set-avatar'(el) {
+      const emoji = el.dataset.e;
+      if (!state.profile || emoji === state.profile.emoji) { state.editAvatar = false; return render(); }
+      const ok = await withBusy(async () => {
+        await call(sb.from('profiles').update({ emoji }).eq('id', me()));
+        state.profile.emoji = emoji;
+        state.editAvatar = false;
+      });
+      if (ok) toast(`${emoji} ${t('avatar_saved')}`);
     },
     'pick-emoji'(el) {
       state.pickedEmoji = el.dataset.e;
@@ -1111,12 +1325,12 @@
         await call(sb.from('profiles').update({ visibility: v }).eq('id', me()));
         state.profile.visibility = v;
       });
-      if (ok) toast(t(v === 'friends' ? 'vis_now_friends' : 'vis_now_nobody'));
+      if (ok) toast(t({ friends: 'vis_now_friends', everyone: 'vis_now_everyone' }[v] || 'vis_now_nobody'));
     },
   };
 
   // действия, которые нельзя запускать, пока предыдущее ещё идёт
-  const EXCLUSIVE = new Set(['checkin', 'end', 'vote', 'add-save', 'signup', 'login', 'delete-me', 'remove-friend', 'visibility']);
+  const EXCLUSIVE = new Set(['checkin', 'end', 'vote', 'add-save', 'signup', 'login', 'delete-me', 'remove-friend', 'visibility', 'set-avatar', 'event-save', 'event-delete']);
 
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-action]');
@@ -1126,7 +1340,7 @@
     if (!fn) return;
     e.preventDefault();
     if (state.busy && EXCLUSIVE.has(name)) return;
-    if (state.armed && name !== 'delete-me' && name !== 'remove-friend') state.armed = null;
+    if (state.armed && !['delete-me', 'remove-friend', 'event-delete'].includes(name)) state.armed = null;
     fn(el, e);
   });
   document.addEventListener('keydown', e => {
@@ -1176,13 +1390,19 @@
     render();
     if (!sb) return;
     try {
-      await Promise.all([loadPubs(), loadVoteCounts()]);
+      await Promise.all([loadPubs(), loadVoteCounts(), loadEvents().catch(() => {})]);
       render();
     } catch (e) {
       toast(errText(e));
     }
     const { data } = await sb.auth.getSession();
     await setUser(data.session ? data.session.user : null);
+    // если доступ к GPS уже разрешён — тихо проверяем, не сидим ли мы в пивной
+    if (navigator.permissions && navigator.geolocation) {
+      navigator.permissions.query({ name: 'geolocation' })
+        .then(p => { if (p.state === 'granted') locate({ silent: true }); })
+        .catch(() => { /* браузер не умеет спрашивать про разрешения */ });
+    }
     sb.auth.onAuthStateChange((event, session) => {
       const user = session ? session.user : null;
       // вход/выход в другой вкладке или истёкшая сессия; проверяем ещё раз после паузы,
