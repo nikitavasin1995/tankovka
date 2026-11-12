@@ -386,6 +386,199 @@ grant select on public.events to anon, authenticated;
 grant insert (pub_id, kind, title, details, starts_at, ends_at) on public.events to authenticated;
 grant delete on public.events to authenticated;
 
+-- =====================================================================
+-- App Store (Apple, правило 1.2 про контент пользователей), 12.11.2026:
+--   • фильтр грубых слов в именах, пивных и событиях;
+--   • «Пожаловаться» на человека, событие или пивную;
+--   • «Заблокировать» человека: он пропадает из друзей и из «Рядом»,
+--     и не может снова добавить вас.
+-- Жалобы видит только владелец приложения: Supabase → Table Editor → reports.
+-- =====================================================================
+
+-- грубые слова и оскорбления (cs/en/de/ru/uk), без учёта регистра
+create or replace function public.is_offensive(p text) returns boolean
+language sql immutable set search_path = '' as $$
+  select lower(coalesce(p, '')) ~ (
+    'fuck|cunt|nigg|faggot|kurva|kurvo|kurvy|píč|pič[aiou]|kokot|čurák|curak|zmrd|mrdat|mrdk|šukat|buzerant'
+    || '|hurensohn|wichser|fotze|arschloch|pizd|mudak|blyat|blyad|bljad'
+    || '|хуй|хуе|хуё|хуя|пизд|ебат|ебал|ебан|ёбан|еблан|бляд|блят|мудак|мудил|пидор|пидар|підар|залуп');
+$$;
+grant execute on function public.is_offensive(text) to anon, authenticated;
+
+-- (поля читаем только в ветке своей таблицы: у profiles нет address, у pubs нет title)
+create or replace function public.reject_offensive() returns trigger
+language plpgsql set search_path = '' as $$
+declare
+  txt text;
+begin
+  if tg_table_name = 'profiles' then
+    txt := new.name;
+  elsif tg_table_name = 'pubs' then
+    txt := concat_ws(' ', new.name, new.address, new.city, new.brand);
+  elsif tg_table_name = 'events' then
+    txt := concat_ws(' ', new.title, new.details);
+  end if;
+  if public.is_offensive(txt) then raise exception 'offensive_text'; end if;
+  return new;
+end $$;
+
+drop trigger if exists profiles_clean on public.profiles;
+create trigger profiles_clean before insert or update of name on public.profiles
+  for each row execute function public.reject_offensive();
+drop trigger if exists pubs_clean on public.pubs;
+create trigger pubs_clean before insert or update on public.pubs
+  for each row execute function public.reject_offensive();
+drop trigger if exists events_clean on public.events;
+create trigger events_clean before insert or update on public.events
+  for each row execute function public.reject_offensive();
+
+-- при регистрации грубое имя молча заменяем, чтобы регистрация не падала
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  nm text := left(coalesce(nullif(trim(new.raw_user_meta_data ->> 'name'), ''), 'Друг'), 24);
+begin
+  if public.is_offensive(nm) then nm := 'Друг'; end if;
+  insert into public.profiles (id, name, emoji)
+  values (new.id, nm, left(coalesce(nullif(new.raw_user_meta_data ->> 'emoji', ''), '🍺'), 8));
+  return new;
+end $$;
+
+-- ---------- жалобы ----------
+create table if not exists public.reports (
+  id          uuid primary key default gen_random_uuid(),
+  reporter    uuid not null references public.profiles (id) on delete cascade,
+  target_type text not null check (target_type in ('user', 'event', 'pub')),
+  target_id   text not null check (char_length(target_id) between 1 and 64),
+  reason      text check (char_length(reason) <= 300),
+  snapshot    jsonb,          -- что именно было (имя, текст) — на случай, если потом удалят
+  created_at  timestamptz not null default now(),
+  unique (reporter, target_type, target_id)
+);
+alter table public.reports enable row level security;
+drop policy if exists "reports: mine" on public.reports;
+create policy "reports: mine" on public.reports for select to authenticated
+  using (reporter = (select auth.uid()));
+revoke all on public.reports from anon, authenticated;
+grant select (target_type, target_id) on public.reports to authenticated;
+
+create or replace function public.report_content(p_type text, p_id text, p_reason text default null) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  me   uuid := auth.uid();
+  snap jsonb;
+  n    integer;
+begin
+  if me is null then raise exception 'not_authenticated'; end if;
+  if p_type = 'user' then
+    if p_id = me::text then raise exception 'bad_target'; end if;
+    select jsonb_build_object('name', p.name, 'emoji', p.emoji) into snap
+    from public.profiles p where p.id::text = p_id;
+  elsif p_type = 'event' then
+    select jsonb_build_object('title', e.title, 'details', e.details, 'pub_id', e.pub_id, 'created_by', e.created_by) into snap
+    from public.events e where e.id::text = p_id;
+  elsif p_type = 'pub' then
+    select jsonb_build_object('name', b.name, 'address', b.address, 'city', b.city, 'added_by', b.added_by) into snap
+    from public.pubs b where b.id = p_id;
+  else
+    raise exception 'bad_target';
+  end if;
+  if snap is null then raise exception 'not_found'; end if;
+  insert into public.reports (reporter, target_type, target_id, reason, snapshot)
+  values (me, p_type, p_id, left(p_reason, 300), snap)
+  on conflict do nothing;
+  -- событие, на которое пожаловались трое разных людей, убираем сразу, не дожидаясь проверки
+  if p_type = 'event' then
+    select count(*) into n from public.reports where target_type = 'event' and target_id = p_id;
+    if n >= 3 then delete from public.events where id::text = p_id; end if;
+  end if;
+end $$;
+
+-- ---------- блокировка ----------
+create table if not exists public.blocks (
+  blocker       uuid not null references public.profiles (id) on delete cascade,
+  blocked       uuid not null references public.profiles (id) on delete cascade,
+  blocked_name  text,         -- имя и аватар на момент блокировки (профиль больше не виден)
+  blocked_emoji text,
+  created_at    timestamptz not null default now(),
+  primary key (blocker, blocked),
+  check (blocker <> blocked)
+);
+alter table public.blocks enable row level security;
+drop policy if exists "blocks: mine" on public.blocks;
+create policy "blocks: mine" on public.blocks for select to authenticated
+  using (blocker = (select auth.uid()));
+drop policy if exists "blocks: unblock" on public.blocks;
+create policy "blocks: unblock" on public.blocks for delete to authenticated
+  using (blocker = (select auth.uid()));
+revoke all on public.blocks from anon, authenticated;
+grant select, delete on public.blocks to authenticated;
+
+create or replace function public.is_blocked_pair(a uuid, b uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.blocks k
+                 where (k.blocker = a and k.blocked = b) or (k.blocker = b and k.blocked = a));
+$$;
+
+create or replace function public.block_user(p_user uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  me  uuid := auth.uid();
+  who public.profiles;
+begin
+  if me is null then raise exception 'not_authenticated'; end if;
+  if p_user = me then raise exception 'bad_target'; end if;
+  select * into who from public.profiles where id = p_user;
+  if who.id is null then raise exception 'not_found'; end if;
+  insert into public.blocks (blocker, blocked, blocked_name, blocked_emoji)
+  values (me, p_user, who.name, who.emoji)
+  on conflict do nothing;
+  delete from public.friendships
+  where (user_id = me and friend_id = p_user) or (user_id = p_user and friend_id = me);
+end $$;
+
+-- добавить в друзья нельзя, если кто-то из двоих заблокировал другого
+-- (отвечаем «код не найден», чтобы не выдавать, что вас заблокировали)
+create or replace function public.add_friend(p_code text) returns json
+language plpgsql security definer set search_path = '' as $$
+declare
+  me    uuid := auth.uid();
+  other public.profiles;
+begin
+  if me is null then raise exception 'not_authenticated'; end if;
+  select * into other from public.profiles p where p.friend_code = upper(trim(p_code));
+  if other.id is null then raise exception 'friend_not_found'; end if;
+  if other.id = me then raise exception 'self_friend'; end if;
+  if public.is_blocked_pair(me, other.id) then raise exception 'friend_not_found'; end if;
+  insert into public.friendships (user_id, friend_id)
+  values (me, other.id), (other.id, me)
+  on conflict do nothing;
+  return json_build_object('id', other.id, 'name', other.name, 'emoji', other.emoji);
+end $$;
+
+-- «Рядом» для всех: без тех, кого я заблокировал или кто заблокировал меня
+create or replace function public.public_live()
+returns table (user_id uuid, name text, emoji text, pub_id text, started_at timestamptz, drinks json)
+language sql stable security definer set search_path = '' as $$
+  select s.user_id, p.name, p.emoji, s.pub_id, s.started_at,
+         coalesce((select json_agg(json_build_object('size', d.size, 'kind', d.kind, 'created_at', d.created_at)
+                                   order by d.created_at)
+                   from public.drinks d where d.session_id = s.id), '[]'::json)
+  from public.sessions s
+  join public.profiles p on p.id = s.user_id
+  where auth.uid() is not null
+    and p.visibility = 'everyone'
+    and s.user_id <> auth.uid()
+    and s.ended_at is null
+    and s.started_at > now() - interval '8 hours'
+    and not public.is_blocked_pair(auth.uid(), s.user_id);
+$$;
+
+revoke execute on function public.report_content(text, text, text), public.block_user(uuid),
+  public.is_blocked_pair(uuid, uuid), public.public_live() from public, anon;
+grant execute on function public.report_content(text, text, text), public.block_user(uuid),
+  public.public_live() to authenticated;
+
 
 
 -- ---------- стартовые пивные с танковым пивом (из открытых источников, ноябрь 2026) ----------
