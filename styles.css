@@ -308,3 +308,12 @@ a { color: var(--amber-dark); }
   opacity: 0; transition: opacity .2s; pointer-events: none;
 }
 .toast.show { opacity: 1; }
+
+/* ---------- подсказки поиска по карте ---------- */
+.geo-list:empty { display: none; }
+.geo-list { margin-top: 6px; border-top: 1px dashed var(--line); padding-top: 4px; }
+.geo-head { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 6px 0 2px; }
+.geo-status { padding: 8px 0; }
+.geo-item .ico { background: #EEF2F7; }
+.field + .geo-list { margin-top: 4px; }
+.pin-search { background: #fff; border: 2px solid var(--me); }

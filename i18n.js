@@ -122,7 +122,7 @@ window.TK_I18N = (function () {
     country: L('Česko', 'Czechia', 'Tschechien', 'Чехия', 'Чехія'),
     no_brand: L('značka neuvedena', 'brand unknown', 'Marke unbekannt', 'марка не указана', 'марку не вказано'),
     only_tank_badge: L('JEN TANKOVÉ', 'TANK BEER ONLY', 'NUR TANKBIER', 'ТОЛЬКО ТАНКОВОЕ', 'ТІЛЬКИ ТАНКОВЕ'),
-    search_ph: L('Název, město nebo značka', 'Name, city or brand', 'Name, Stadt oder Marke', 'Название, город или марка', 'Назва, місто або марка'),
+    search_ph: L('Hospoda, adresa, město nebo značka', 'Pub, address, city or brand', 'Kneipe, Adresse, Stadt oder Marke', 'Пивная, адрес, город или марка', 'Пивна, адреса, місто або марка'),
     search_label: L('Hledat hospodu', 'Search pubs', 'Kneipe suchen', 'Поиск пивной', 'Пошук пивної'),
     near_me_btn: L('📍 Blízko mě', '📍 Near me', '📍 In meiner Nähe', '📍 Рядом со мной', '📍 Поруч зі мною'),
     add_pub_btn: L('＋ Přidat hospodu', '＋ Add a pub', '＋ Kneipe hinzufügen', '＋ Добавить пивную', '＋ Додати пивну'),
@@ -175,6 +175,16 @@ window.TK_I18N = (function () {
     enter_name: L('Zadejte název', 'Enter a name', 'Gib einen Namen ein', 'Введите название', 'Введіть назву'),
     only_tank_places: L('Přidávat jde jen místa s tankovým pivem', 'Only places with tank beer can be added', 'Nur Orte mit Tankbier können hinzugefügt werden', 'Добавлять можно только места с танковым пивом', 'Додавати можна лише місця з танковим пивом'),
     pub_added: L('Hospoda přidána na mapu — uvidí ji všichni', 'Pub added to the map — everyone will see it', 'Kneipe zur Karte hinzugefügt — alle sehen sie', 'Пивная добавлена на карту — её увидят все', 'Пивну додано на мапу — її побачать усі'),
+    // ---------- поиск по карте (подсказки адресов) ----------
+    geo_places: L('Místa na mapě', 'Places on the map', 'Orte auf der Karte', 'Места на карте', 'Місця на мапі'),
+    geo_searching: L('Hledám…', 'Searching…', 'Suche…', 'Ищу…', 'Шукаю…'),
+    geo_none: L('Na mapě nic nenalezeno', 'Nothing found on the map', 'Nichts auf der Karte gefunden', 'На карте ничего не нашлось', 'На мапі нічого не знайдено'),
+    geo_error: L('Hledání na mapě teď nefunguje, zkuste to později', 'Map search isn’t available right now, try later', 'Kartensuche gerade nicht verfügbar, versuch es später', 'Поиск по карте сейчас недоступен, попробуйте позже', 'Пошук на мапі зараз недоступний, спробуйте пізніше'),
+    find_label: L('Najít na mapě', 'Find on the map', 'Auf der Karte finden', 'Найти на карте', 'Знайти на мапі'),
+    find_ph: L('Název hospody nebo adresa', 'Pub name or address', 'Kneipenname oder Adresse', 'Название пивной или адрес', 'Назва пивної або адреса'),
+    find_hint: L('Vyberte z nabídky — bod na mapě a adresa se vyplní samy. Nebo klepněte přímo do mapy.', 'Pick a suggestion — the map point and address fill in automatically. Or tap the map.', 'Wähle einen Vorschlag — Kartenpunkt und Adresse werden automatisch ausgefüllt. Oder tippe auf die Karte.', 'Выберите подсказку — точка на карте и адрес заполнятся сами. Или нажмите на карту.', 'Виберіть підказку — точка на мапі й адреса заповняться самі. Або натисніть на мапу.'),
+    point_from_search: L('✔ Nalezeno: {place}. Bod můžete upřesnit klepnutím do mapy.', '✔ Found: {place}. Tap the map to fine-tune the point.', '✔ Gefunden: {place}. Tippe auf die Karte, um den Punkt anzupassen.', '✔ Найдено: {place}. Точку можно уточнить нажатием на карту.', '✔ Знайдено: {place}. Точку можна уточнити натисканням на мапу.'),
+    already_on_map: L('Hospoda „{name}“ už na mapě je', '“{name}” is already on the map', '„{name}“ ist schon auf der Karte', '«{name}» уже есть на карте', '«{name}» вже є на мапі'),
 
     // ---------- рядом ----------
     nearby_h: L('Kdo pije poblíž', 'Who’s drinking nearby', 'Wer trinkt in der Nähe', 'Кто пьёт рядом', 'Хто п’є поруч'),

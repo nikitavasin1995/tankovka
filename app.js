@@ -423,16 +423,137 @@
     }
   }
 
-  map.on('click', e => {
-    if (state.view !== 'add') return;
-    state.pendingPoint = { lat: e.latlng.lat, lng: e.latlng.lng };
-    if (pendingMarker) pendingMarker.setLatLng(e.latlng);
-    else pendingMarker = L.marker(e.latlng, {
+  function setPendingPoint(ll) {
+    state.pendingPoint = { lat: ll.lat, lng: ll.lng };
+    if (pendingMarker) pendingMarker.setLatLng([ll.lat, ll.lng]);
+    else pendingMarker = L.marker([ll.lat, ll.lng], {
       icon: L.divIcon({ className: '', html: '<div class="pin pin-user">＋</div>', iconSize: [34, 34], iconAnchor: [17, 17] }),
     }).addTo(map);
+  }
+
+  map.on('click', e => {
+    if (state.view !== 'add') return;
+    setPendingPoint(e.latlng);
     const status = $('#addPoint');
     if (status) status.textContent = t('point_picked_move');
   });
+
+  // ---------- поиск по карте: подсказки адресов и заведений (OpenStreetMap / Photon) ----------
+  // Photon — бесплатный геокодер на данных OpenStreetMap, разрешает подсказки «по мере ввода».
+  const GEO_URL = 'https://photon.komoot.io/api/';
+  const CZ_BBOX = '12.09,48.55,18.86,51.06';
+  const DRINK_PLACES = ['pub', 'bar', 'biergarten', 'restaurant', 'cafe', 'brewery', 'nightclub'];
+  const geoCache = new Map();
+  let geoTimer = null, geoCtrl = null, searchMarker = null;
+
+  function toPlace(f) {
+    const p = f.properties || {}, [lng, lat] = f.geometry.coordinates;
+    const street = [p.street, p.housenumber].filter(Boolean).join(' ');
+    const city = p.city || p.town || p.village || p.county || '';
+    const isPoi = !!p.name && !['place', 'highway', 'boundary'].includes(p.osm_key) && !['street', 'city', 'district', 'locality', 'county', 'state'].includes(p.type);
+    const parts = [isPoi || !p.name ? street : '', p.district && p.district !== city ? p.district : '', city];
+    return {
+      lat, lng, street, city,
+      name: isPoi ? p.name : '',
+      title: p.name || street || city,
+      sub: parts.filter((v, i, a) => v && a.indexOf(v) === i && v !== p.name).join(', '),
+      drink: DRINK_PLACES.includes(p.osm_value),
+    };
+  }
+
+  function geoListHTML() {
+    const g = state.geo;
+    if (!g || g.status === 'idle') return '';
+    if (g.status !== 'done') return `<li class="muted geo-status">${t({ loading: 'geo_searching', empty: 'geo_none', error: 'geo_error' }[g.status])}</li>`;
+    return `<li class="geo-head">${t('geo_places')}</li>` + g.results.map((r, i) => `
+      <li class="item geo-item" role="button" tabindex="0" data-action="geo-pick" data-i="${i}">
+        <div class="ico">${r.drink ? '🍺' : '📍'}</div>
+        <div class="main"><div class="title">${esc(r.title)}</div><div class="sub">${esc(r.sub)}</div></div>
+      </li>`).join('');
+  }
+  function renderGeo() {
+    const el = document.getElementById(state.geo && state.geo.target === 'add' ? 'geoListAdd' : 'geoList');
+    if (el) el.innerHTML = geoListHTML();
+  }
+
+  // подсказки по мере ввода: ждём паузу 0,35 с, старый запрос отменяем, ответы кешируем
+  function geoQuery(text, target) {
+    clearTimeout(geoTimer);
+    const q = String(text || '').trim();
+    state.geo = { target, query: q, results: [], status: q.length < 3 ? 'idle' : 'loading' };
+    renderGeo();
+    if (q.length < 3) return;
+    geoTimer = setTimeout(async () => {
+      const key = q.toLowerCase();
+      try {
+        let res = geoCache.get(key);
+        if (!res) {
+          if (geoCtrl) geoCtrl.abort();
+          geoCtrl = new AbortController();
+          const c = map.getCenter();
+          const url = `${GEO_URL}?q=${encodeURIComponent(q)}&limit=8&bbox=${CZ_BBOX}&lat=${c.lat.toFixed(4)}&lon=${c.lng.toFixed(4)}`;
+          const r = await fetch(url, { signal: geoCtrl.signal });
+          if (!r.ok) throw new Error('geo ' + r.status);
+          const data = await r.json();
+          // ранжирование: с номером дома в запросе — сначала точные адреса, иначе — бары и пивные
+          const nums = q.match(/\d+/g) || [];
+          const score = r => (nums.length
+            ? (nums.some(n => new RegExp(`\\b${n}\\b`).test(r.street)) ? 3 : 0) + (r.name && !r.drink ? -2 : 0)
+            : (r.drink ? 2 : 0) + (r.name && !r.drink ? -1 : 0));
+          res = (data.features || []).filter(f => (f.properties || {}).countrycode === 'CZ').map(toPlace)
+            .map((r, i) => ({ r, i, s: score(r) })).sort((a, b) => b.s - a.s || a.i - b.i).map(x => x.r).slice(0, 6);
+          geoCache.set(key, res);
+        }
+        if (!state.geo || state.geo.query !== q) return; // человек уже печатает дальше
+        state.geo.results = res;
+        state.geo.status = res.length ? 'done' : 'empty';
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        if (state.geo && state.geo.query === q) state.geo.status = 'error';
+      }
+      renderGeo();
+    }, 350);
+  }
+
+  function showSearchMarker(r) {
+    if (searchMarker) map.removeLayer(searchMarker);
+    searchMarker = L.marker([r.lat, r.lng], {
+      icon: L.divIcon({ className: '', html: '<div class="pin pin-search">📍</div>', iconSize: [34, 34], iconAnchor: [17, 17] }),
+      title: r.title, zIndexOffset: 500,
+    }).addTo(map);
+  }
+
+  function pickGeo(index) {
+    const g = state.geo;
+    const r = g && g.results[index];
+    if (!r) return;
+    state.geo = null;
+    // уже есть в нашей базе (то же место в пределах 80 м)? — открываем его карточку
+    const near = state.pubs.map(p => ({ p, d: distance(p, r) })).filter(x => x.d < 80).sort((a, b) => a.d - b.d)[0];
+    if (g.target === 'add') {
+      if (near && (r.name || r.drink)) { toast(t('already_on_map', { name: near.p.name })); clearAddMode(); selectPub(near.p.id); return; }
+      setPendingPoint(r);
+      const fill = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+      if (r.drink) fill('aName', r.name);   // название берём только у баров, пивных и ресторанов
+      fill('aAddress', r.street || (r.name ? '' : r.title));   // у улицы без номера — хотя бы название улицы
+      fill('aCity', r.city);
+      const find = document.getElementById('aFind');
+      if (find) find.value = '';
+      map.setView([r.lat, r.lng], 17);
+      const list = document.getElementById('geoListAdd');
+      if (list) list.innerHTML = '';
+      const status = $('#addPoint');
+      if (status) status.textContent = t('point_from_search', { place: r.title });
+      return;
+    }
+    state.query = '';
+    const input = document.getElementById('search');
+    if (input) input.value = '';
+    if (near) { selectPub(near.p.id); return; }
+    showSearchMarker(r);
+    map.setView([r.lat, r.lng], 16);
+    render();
+  }
 
   map.on('moveend', () => {
     if (state.myPos) return;
@@ -453,6 +574,7 @@
     const p = pubById(id);
     if (!p) return;
     if (state.view === 'add') clearAddMode();
+    state.geo = null;
     state.tab = 'pubs';
     state.view = 'pub';
     state.selectedId = id;
@@ -509,6 +631,7 @@
       </div>
       <p class="muted">${t(state.myPos ? 'nearest_me' : 'nearest_center')}</p>
       <ul class="list" id="pubList">${pubListHTML()}</ul>
+      <ul class="list geo-list" id="geoList">${state.geo && state.geo.target === 'search' ? geoListHTML() : ''}</ul>
       ${sb ? '' : offlineNote()}
     </div>`;
   }
@@ -602,6 +725,9 @@
     return `<div class="view">
       <button class="btn btn-ghost" data-action="add-cancel">${t('cancel')}</button>
       <h2>${t('new_pub_h')}</h2>
+      <label class="field">${t('find_label')}<input id="aFind" class="input" type="search" autocomplete="off" placeholder="${t('find_ph')}"></label>
+      <ul class="list geo-list" id="geoListAdd">${state.geo && state.geo.target === 'add' ? geoListHTML() : ''}</ul>
+      <p class="muted">${t('find_hint')}</p>
       <p class="muted" id="addPoint">${t(state.pendingPoint ? 'point_picked' : 'step_pick_point')}</p>
       <label class="field">${t('f_name')}<input id="aName" class="input" maxlength="60" placeholder="${t('f_name_ph')}"></label>
       <label class="field">${t('f_address')} <span class="muted">${t('optional')}</span><input id="aAddress" class="input" maxlength="80" placeholder="${t('f_address_ph')}"></label>
@@ -861,10 +987,12 @@
       state.view = 'list';
       state.selectedId = null;
       state.armed = null;
+      state.geo = null;
       render();
     },
     'select-pub': el => selectPub(el.dataset.id),
-    back() { state.view = 'list'; state.selectedId = null; render(); },
+    'geo-pick': el => pickGeo(Number(el.dataset.i)),
+    back() { state.view = 'list'; state.selectedId = null; state.geo = null; render(); },
     checkin: el => checkIn(el.dataset.id),
     drink: el => addDrink(parseFloat(el.dataset.size), el.dataset.kind),
     install: async () => {
@@ -884,9 +1012,10 @@
       state.tab = 'pubs';
       state.view = 'add';
       state.selectedId = null;
+      state.geo = null;
       render();
     },
-    'add-cancel'() { clearAddMode(); state.view = 'list'; render(); },
+    'add-cancel'() { clearAddMode(); state.view = 'list'; state.geo = null; render(); },
     async 'add-save'() {
       const name = value('aName');
       if (!state.pendingPoint) return toast(t('add_hint'));
@@ -1016,9 +1145,13 @@
     if (meMarker) meMarker.setTooltipContent(t('you_are_here'));
   });
   document.addEventListener('input', e => {
-    if (e.target.id !== 'search') return;
-    state.query = e.target.value;
-    $('#pubList').innerHTML = pubListHTML();
+    if (e.target.id === 'search') {
+      state.query = e.target.value;
+      $('#pubList').innerHTML = pubListHTML();
+      geoQuery(e.target.value, 'search');   // плюс подсказки адресов и мест на карте
+    } else if (e.target.id === 'aFind') {
+      geoQuery(e.target.value, 'add');
+    }
   });
   window.addEventListener('resize', () => map.invalidateSize());
 
